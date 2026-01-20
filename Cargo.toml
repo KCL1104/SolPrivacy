@@ -1,0 +1,61 @@
+[package]
+name = "solprivacy"
+version = "0.1.0"
+edition = "2021"
+description = "Privacy Orchestration Layer for Solana - All-in-one CLI for privacy development"
+license = "MIT"
+repository = "https://github.com/user/solprivacy-cli"
+keywords = ["solana", "privacy", "zk", "cli", "token-2022"]
+categories = ["command-line-utilities", "cryptography"]
+
+[dependencies]
+# CLI Framework
+clap = { version = "4", features = ["derive", "env", "color"] }
+tokio = { version = "1", features = ["full"] }
+
+# Solana
+solana-sdk = "2"
+solana-client = "2"
+solana-transaction-status = "2"
+spl-token-2022 = "6"
+
+# Privacy
+# privacy-cash = "0.2"  # Disabled: wasmer 2.x incompatible with Rust 1.91+ (see issue rust-lang/rust#142612)
+
+# Utilities
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+tokio-util = "0.7"
+
+# CLI UX
+colored = "3"
+indicatif = "0.17"
+dialoguer = "0.11"
+console = "0.15"
+
+# Template Engine
+handlebars = "6"
+
+# Config & Env
+dotenvy = "0.15"
+dirs = "5"
+
+# Error Handling
+thiserror = "2"
+anyhow = "1"
+
+# Crypto (for ElGamal key generation)
+curve25519-dalek = "4"
+rand = "0.8"
+base64 = "0.22"
+bs58 = "0.5"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+
+[[bin]]
+name = "solprivacy"
+path = "src/main.rs"
