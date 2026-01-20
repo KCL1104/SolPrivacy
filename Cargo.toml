@@ -18,6 +18,7 @@ solana-sdk = "2"
 solana-client = "2"
 solana-transaction-status = "2"
 spl-token-2022 = "6"
+spl-associated-token-account = "6"
 
 # Privacy
 # privacy-cash = "0.2"  # Disabled: wasmer 2.x incompatible with Rust 1.91+ (see issue rust-lang/rust#142612)

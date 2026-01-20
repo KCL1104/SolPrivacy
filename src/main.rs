@@ -5,7 +5,7 @@ mod commands;
 mod config;
 mod error;
 
-use commands::{ConfigCommand, DebugCommand, InitCommand, KeygenCommand, TemplateCommand, FundCommand};
+use commands::{ConfigCommand, DebugCommand, InitCommand, KeygenCommand, TemplateCommand, FundCommand, MintCommand, ZkCommand, AccountCommand, TransferCommand};
 use error::Result;
 
 /// SolPrivacy-CLI: Privacy Orchestration Layer for Solana
@@ -42,6 +42,18 @@ enum Commands {
     
     /// Fund a wallet (with optional private transfer via Privacy Cash)
     Fund(FundCommand),
+    
+    /// Create and manage Token-2022 confidential tokens
+    Mint(MintCommand),
+    
+    /// Zero-Knowledge proof operations using Noir circuits
+    Zk(ZkCommand),
+    
+    /// Manage token accounts
+    Account(AccountCommand),
+    
+    /// Transfer tokens (supports confidential mode)
+    Transfer(TransferCommand),
 }
 
 #[tokio::main]
@@ -58,6 +70,10 @@ async fn main() -> Result<()> {
         Commands::Keygen(cmd) => cmd.run().await,
         Commands::Template(cmd) => cmd.run().await,
         Commands::Fund(cmd) => cmd.run().await,
+        Commands::Mint(cmd) => cmd.run().await,
+        Commands::Zk(cmd) => cmd.run().await,
+        Commands::Account(cmd) => cmd.run().await,
+        Commands::Transfer(cmd) => cmd.run().await,
     }
 }
 

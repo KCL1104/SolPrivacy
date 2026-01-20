@@ -2,7 +2,7 @@ use clap::Args;
 use colored::Colorize;
 use std::fs;
 use std::path::Path;
-use crate::error::{Result, SolPrivacyError};
+use crate::error::Result;
 
 /// Generate project templates
 #[derive(Args)]

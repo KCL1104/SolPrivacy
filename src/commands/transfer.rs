@@ -1,0 +1,233 @@
+use clap::{Args, Subcommand};
+use colored::Colorize;
+use indicatif::{ProgressBar, ProgressStyle};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
+    signature::{read_keypair_file, Keypair, Signer},
+    transaction::Transaction,
+};
+use spl_token_2022::{
+    instruction as token_instruction,
+    id as token_2022_program_id,
+};
+use spl_associated_token_account::{
+    get_associated_token_address_with_program_id,
+    instruction::create_associated_token_account,
+};
+use std::str::FromStr;
+use crate::config::AppConfig;
+use crate::error::{Result, SolPrivacyError};
+
+/// Transfer tokens (supports confidential mode)
+#[derive(Args)]
+pub struct TransferCommand {
+    /// Mint address of the token
+    #[arg(short, long)]
+    pub mint: String,
+    
+    /// Recipient address
+    #[arg(short, long)]
+    pub to: String,
+    
+    /// Amount to transfer (in token units, e.g., 100.5)
+    #[arg(short, long)]
+    pub amount: f64,
+    
+    /// Path to sender keypair
+    #[arg(short, long, env = "SOLANA_KEYPAIR")]
+    pub keypair: Option<String>,
+    
+    /// Use confidential transfer (encrypted amounts)
+    #[arg(long)]
+    pub confidential: bool,
+    
+    /// Dry run - simulate without sending
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+impl TransferCommand {
+    pub async fn run(&self) -> Result<()> {
+        println!("{} Token Transfer", "→".bright_cyan());
+        println!("{}", "─".repeat(50).bright_black());
+        println!();
+        
+        let config = AppConfig::load()?;
+        let rpc_url = config.get_rpc_url();
+        
+        // Parse addresses
+        let mint_pubkey = Pubkey::from_str(&self.mint)
+            .map_err(|e| SolPrivacyError::Other(format!("Invalid mint: {}", e)))?;
+        let recipient = Pubkey::from_str(&self.to)
+            .map_err(|e| SolPrivacyError::Other(format!("Invalid recipient: {}", e)))?;
+        
+        println!("  {}:", "Transfer Details".bright_white());
+        println!("  ├─ Mint: {}...", &self.mint[..16.min(self.mint.len())]);
+        println!("  ├─ To: {}...", &self.to[..16.min(self.to.len())]);
+        println!("  ├─ Amount: {}", format!("{}", self.amount).bright_cyan());
+        println!("  ├─ Mode: {}", if self.confidential { 
+            "Confidential (encrypted)".bright_green() 
+        } else { 
+            "Public".bright_yellow() 
+        });
+        println!("  └─ Network: {}", config.network);
+        println!();
+        
+        if self.confidential {
+            println!("{} Confidential transfer requires additional setup", "⚠".bright_yellow());
+            println!("  Token accounts must be configured for confidential transfers.");
+            println!("  Use: solprivacy account configure-confidential --account <ADDR>");
+            println!();
+            
+            if self.dry_run {
+                println!("{} Dry run - confidential transfer simulation", "ℹ".bright_blue());
+                println!();
+                println!("  Steps for confidential transfer:");
+                println!("    1. Configure source account for confidential mode");
+                println!("    2. Deposit tokens to pending balance");
+                println!("    3. Apply pending balance");
+                println!("    4. Transfer (with ZK proof)");
+                return Ok(());
+            }
+            
+            // For now, show guidance
+            println!("  Full confidential transfer implementation:");
+            println!("    - Requires ZK proof generation");
+            println!("    - Uses ElGamal encryption for amounts");
+            println!("    - Coming in next version");
+            return Ok(());
+        }
+        
+        // Standard (public) transfer
+        if self.dry_run {
+            println!("{} Dry run - no transaction sent", "ℹ".bright_blue());
+            println!();
+            println!("  Would transfer {} tokens", self.amount);
+            println!("  From: (your account)");
+            println!("  To: {}", recipient);
+            return Ok(());
+        }
+        
+        // Load keypair
+        let keypair_path = match &self.keypair {
+            Some(p) => p.clone(),
+            None => {
+                let default = dirs::home_dir()
+                    .map(|h| h.join(".config/solana/id.json"))
+                    .and_then(|p| p.to_str().map(|s| s.to_string()));
+                
+                match default {
+                    Some(p) if std::path::Path::new(&p).exists() => p,
+                    _ => {
+                        println!("{} Keypair required!", "✗".bright_red());
+                        return Ok(());
+                    }
+                }
+            }
+        };
+        
+        let payer = read_keypair_file(&keypair_path)
+            .map_err(|e| SolPrivacyError::Crypto(format!("Failed to read keypair: {}", e)))?;
+        
+        println!("{} Connecting...", "→".bright_cyan());
+        let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
+        
+        // Get mint info to determine decimals
+        let mint_account = client.get_account(&mint_pubkey)
+            .map_err(|e| SolPrivacyError::Other(format!("Failed to get mint: {}", e)))?;
+        
+        // Parse decimals from mint data (offset 44 for standard mint)
+        let decimals = if mint_account.data.len() >= 45 {
+            mint_account.data[44]
+        } else {
+            9 // default
+        };
+        
+        // Calculate raw amount
+        let raw_amount = (self.amount * 10f64.powi(decimals as i32)) as u64;
+        
+        // Get source and destination ATAs
+        let source_ata = get_associated_token_address_with_program_id(
+            &payer.pubkey(),
+            &mint_pubkey,
+            &token_2022_program_id(),
+        );
+        
+        let dest_ata = get_associated_token_address_with_program_id(
+            &recipient,
+            &mint_pubkey,
+            &token_2022_program_id(),
+        );
+        
+        println!("  Source: {}", source_ata);
+        println!("  Destination: {}", dest_ata);
+        println!();
+        
+        // Build instructions
+        let mut instructions = vec![];
+        
+        // Check if destination ATA exists, if not create it
+        if client.get_account(&dest_ata).is_err() {
+            println!("{} Creating destination account...", "→".bright_cyan());
+            instructions.push(create_associated_token_account(
+                &payer.pubkey(),
+                &recipient,
+                &mint_pubkey,
+                &token_2022_program_id(),
+            ));
+        }
+        
+        // Transfer instruction
+        instructions.push(
+            token_instruction::transfer_checked(
+                &token_2022_program_id(),
+                &source_ata,
+                &mint_pubkey,
+                &dest_ata,
+                &payer.pubkey(),
+                &[],
+                raw_amount,
+                decimals,
+            ).map_err(|e| SolPrivacyError::Other(format!("Failed to create transfer: {:?}", e)))?
+        );
+        
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(ProgressStyle::default_spinner()
+            .template("{spinner:.cyan} {msg}")
+            .unwrap());
+        pb.set_message("Sending transaction...");
+        
+        let blockhash = client.get_latest_blockhash()
+            .map_err(|e| SolPrivacyError::Other(format!("Failed to get blockhash: {}", e)))?;
+        
+        let transaction = Transaction::new_signed_with_payer(
+            &instructions,
+            Some(&payer.pubkey()),
+            &[&payer],
+            blockhash,
+        );
+        
+        let signature = client.send_and_confirm_transaction(&transaction)
+            .map_err(|e| SolPrivacyError::Other(format!("Transfer failed: {}", e)))?;
+        
+        pb.finish_and_clear();
+        
+        println!("{} Transfer complete!", "✓".bright_green());
+        println!();
+        println!("  {}:", "Details".bright_white());
+        println!("  ├─ Amount: {} tokens", self.amount);
+        println!("  ├─ To: {}", recipient);
+        println!("  └─ Signature: {}", signature);
+        println!();
+        
+        let explorer = match config.network.as_str() {
+            "mainnet" => format!("https://solscan.io/tx/{}", signature),
+            _ => format!("https://solscan.io/tx/{}?cluster=devnet", signature),
+        };
+        println!("  View: {}", explorer);
+        
+        Ok(())
+    }
+}

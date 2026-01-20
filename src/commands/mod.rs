@@ -4,6 +4,10 @@ mod debug;
 mod keygen;
 mod template;
 mod fund;
+mod mint;
+mod zk;
+mod account;
+mod transfer;
 
 pub use init::InitCommand;
 pub use config::ConfigCommand;
@@ -11,3 +15,7 @@ pub use debug::DebugCommand;
 pub use keygen::KeygenCommand;
 pub use template::TemplateCommand;
 pub use fund::FundCommand;
+pub use mint::MintCommand;
+pub use zk::ZkCommand;
+pub use account::AccountCommand;
+pub use transfer::TransferCommand;

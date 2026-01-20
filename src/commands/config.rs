@@ -1,5 +1,6 @@
 use clap::{Args, Subcommand};
 use colored::Colorize;
+use solana_client::rpc_client::RpcClient;
 use crate::config::AppConfig;
 use crate::error::Result;
 
@@ -25,6 +26,13 @@ pub enum ConfigAction {
         #[arg(long)]
         endpoint: String,
     },
+
+    /// Configure custom RPC URL
+    Custom {
+        /// Custom RPC URL
+        #[arg(long)]
+        url: String,
+    },
     
     /// Set network (devnet/mainnet)
     Network {
@@ -38,6 +46,13 @@ pub enum ConfigAction {
     
     /// Show the active RPC URL
     Rpc,
+
+    /// Test RPC connectivity
+    Test {
+        /// Optional RPC URL to test (defaults to current config)
+        #[arg(long)]
+        url: Option<String>,
+    },
 }
 
 impl ConfigCommand {
@@ -69,6 +84,18 @@ impl ConfigCommand {
                 println!("  Endpoint: {}", endpoint);
                 println!("  Provider set to: {}", "quicknode".bright_white());
             }
+            ConfigAction::Custom { url } => {
+                println!("{} Configuring custom RPC...", "→".bright_cyan());
+
+                let mut config = AppConfig::load()?;
+                config.rpc.custom_rpc_url = Some(url.clone());
+                config.rpc.active_provider = "custom".to_string();
+                config.save()?;
+
+                println!("{} Custom RPC configuration saved!", "✓".bright_green());
+                println!("  URL: {}", url);
+                println!("  Provider set to: {}", "custom".bright_white());
+            }
             ConfigAction::Network { network } => {
                 println!("{} Setting network...", "→".bright_cyan());
                 
@@ -96,6 +123,9 @@ impl ConfigCommand {
                 if let Some(ref endpoint) = config.rpc.quicknode_endpoint {
                     println!("    QuickNode Endpoint: {}", endpoint);
                 }
+                if let Some(ref url) = config.rpc.custom_rpc_url {
+                    println!("    Custom RPC URL: {}", url);
+                }
                 
                 println!();
                 println!("  {}:", "Active RPC URL".bright_white());
@@ -108,6 +138,30 @@ impl ConfigCommand {
                 let config = AppConfig::load()?;
                 // Just print the RPC URL for scripting use
                 println!("{}", config.get_rpc_url());
+            }
+            ConfigAction::Test { url } => {
+                let config = AppConfig::load()?;
+                let target_url = url.clone().unwrap_or_else(|| config.get_rpc_url());
+
+                println!("{} Testing RPC...", "→".bright_cyan());
+                println!("  URL: {}", target_url.bright_blue());
+
+                let client = RpcClient::new(target_url.clone());
+                match client.get_version() {
+                    Ok(version) => {
+                        let feature_set = version
+                            .feature_set
+                            .map(|value| value.to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        println!("{} RPC reachable", "✓".bright_green());
+                        println!("  Solana core: {}", version.solana_core);
+                        println!("  Feature set: {}", feature_set);
+                    }
+                    Err(error) => {
+                        println!("{} RPC unreachable", "✗".bright_red());
+                        println!("  Error: {}", error);
+                    }
+                }
             }
         }
         
