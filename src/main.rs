@@ -4,8 +4,9 @@ use colored::Colorize;
 mod commands;
 mod config;
 mod error;
+mod validation;
 
-use commands::{ConfigCommand, DebugCommand, InitCommand, KeygenCommand, TemplateCommand, FundCommand, MintCommand, ZkCommand, AccountCommand, TransferCommand};
+use commands::{ConfigCommand, DebugCommand, InitCommand, KeygenCommand, TemplateCommand, FundCommand, MintCommand, ZkCommand, AccountCommand, TransferCommand, WalletCommand, SetupCommand, DevCommand, LightCommand, DocsCommand, ExamplesCommand, ConfidentialCommand, ComplianceCommand, HeliusCommand, DoctorCommand, QuickstartCommand};
 use error::Result;
 
 /// SolPrivacy-CLI: Privacy Orchestration Layer for Solana
@@ -54,6 +55,39 @@ enum Commands {
     
     /// Transfer tokens (supports confidential mode)
     Transfer(TransferCommand),
+    
+    /// Wallet management (create, import, balance, airdrop)
+    Wallet(WalletCommand),
+    
+    /// Setup and validate privacy development toolchains
+    Setup(SetupCommand),
+    
+    /// Local development environment (start/stop validator)
+    Dev(DevCommand),
+    
+    /// Light Protocol ZK Compression commands
+    Light(LightCommand),
+    
+    /// Quick access to privacy documentation
+    Docs(DocsCommand),
+    
+    /// Clone example projects
+    Examples(ExamplesCommand),
+    
+    /// Confidential transfer operations (configure, deposit, apply, transfer, withdraw)
+    Confidential(ConfidentialCommand),
+    
+    /// Compliance and risk assessment using Range Protocol
+    Compliance(ComplianceCommand),
+    
+    /// Helius API integration (DAS, Priority Fees, Webhooks)
+    Helius(HeliusCommand),
+    
+    /// Diagnostic and troubleshooting tools
+    Doctor(DoctorCommand),
+    
+    /// Interactive tutorials and getting started guides
+    Quickstart(QuickstartCommand),
 }
 
 #[tokio::main]
@@ -74,6 +108,17 @@ async fn main() -> Result<()> {
         Commands::Zk(cmd) => cmd.run().await,
         Commands::Account(cmd) => cmd.run().await,
         Commands::Transfer(cmd) => cmd.run().await,
+        Commands::Wallet(cmd) => cmd.run().await,
+        Commands::Setup(cmd) => cmd.run().await,
+        Commands::Dev(cmd) => cmd.run().await,
+        Commands::Light(cmd) => cmd.run().await,
+        Commands::Docs(cmd) => cmd.run().await,
+        Commands::Examples(cmd) => cmd.run().await,
+        Commands::Confidential(cmd) => cmd.run().await,
+        Commands::Compliance(cmd) => cmd.run().await,
+        Commands::Helius(cmd) => cmd.run().await,
+        Commands::Doctor(cmd) => cmd.run().await,
+        Commands::Quickstart(cmd) => cmd.run().await,
     }
 }
 

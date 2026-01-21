@@ -14,11 +14,14 @@ clap = { version = "4", features = ["derive", "env", "color"] }
 tokio = { version = "1", features = ["full"] }
 
 # Solana
-solana-sdk = "2"
-solana-client = "2"
-solana-transaction-status = "2"
-spl-token-2022 = "6"
-spl-associated-token-account = "6"
+solana-sdk = "3"
+solana-client = "3"
+solana-transaction-status = "3"
+solana-commitment-config = "3"
+solana-system-interface = "2"
+solana-pubkey = "2"  # For light-client compatibility
+spl-token-2022 = { version = "10", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "8", features = ["no-entrypoint"] }
 
 # Privacy
 # privacy-cash = "0.2"  # Disabled: wasmer 2.x incompatible with Rust 1.91+ (see issue rust-lang/rust#142612)
@@ -46,12 +49,18 @@ dirs = "5"
 thiserror = "2"
 anyhow = "1"
 
+# Security
+zeroize = "1"
+
 # Crypto (for ElGamal key generation)
 curve25519-dalek = "4"
 rand = "0.8"
 base64 = "0.22"
 bs58 = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
+
+# Light Protocol ZK Compression
+light-client = "0.18"
 
 [dev-dependencies]
 assert_cmd = "2"
@@ -60,3 +69,25 @@ predicates = "3"
 [[bin]]
 name = "solprivacy"
 path = "src/main.rs"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# Config for 'dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Conditions for На)
+cargo-dist-version = "0.30.3"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "powershell"]
+# Target platforms to build apps for (Rust target triples)
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# Which actions to run on pull requests
+pr-run-mode = "plan"
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Whether to install an updater program
+install-updater = false

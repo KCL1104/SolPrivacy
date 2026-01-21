@@ -7,9 +7,6 @@ pub enum SolPrivacyError {
     #[error("Configuration error: {0}")]
     Config(String),
     
-    #[error("RPC error: {0}")]
-    Rpc(String),
-    
     #[error("Crypto error: {0}")]
     Crypto(String),
     
@@ -19,8 +16,8 @@ pub enum SolPrivacyError {
     #[error("Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
     
-    #[error("Solana client error: {0}")]
-    SolanaClient(String),
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
     
     #[error("{0}")]
     Other(String),

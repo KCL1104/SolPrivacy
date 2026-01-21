@@ -2,7 +2,7 @@ use clap::{Args, Subcommand};
 use colored::Colorize;
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
-use curve25519_dalek::ristretto::CompressedRistretto;
+use zeroize::Zeroize;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -97,8 +97,8 @@ impl KeygenCommand {
         // Compress the public key for storage
         let public_compressed = public_point.compress();
         
-        // Serialize keys
-        let secret_bytes = secret_scalar.as_bytes();
+        // Serialize keys - copy secret bytes before zeroizing
+        let mut secret_bytes = *secret_scalar.as_bytes();
         let public_bytes = public_compressed.as_bytes();
         
         // Create keypair JSON
@@ -116,12 +116,27 @@ impl KeygenCommand {
             created_at: chrono::Utc::now().to_rfc3339(),
         };
         
+        // Zeroize secret bytes from memory after encoding
+        secret_bytes.zeroize();
+        
         // Serialize and save
         let json = serde_json::to_string_pretty(&keypair)
             .map_err(|e| SolPrivacyError::Crypto(format!("Failed to serialize keypair: {}", e)))?;
         
         fs::write(output_path, &json)
             .map_err(|e| SolPrivacyError::Crypto(format!("Failed to write keypair: {}", e)))?;
+        
+        // Set restrictive file permissions (Unix only)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(output_path)
+                .map_err(|e| SolPrivacyError::Crypto(format!("Failed to get file metadata: {}", e)))?
+                .permissions();
+            perms.set_mode(0o600);
+            fs::set_permissions(output_path, perms)
+                .map_err(|e| SolPrivacyError::Crypto(format!("Failed to set file permissions: {}", e)))?;
+        }
         
         println!("{} {} keypair generated!", "✓".bright_green(), key_type);
         println!();
@@ -135,6 +150,8 @@ impl KeygenCommand {
         println!();
         println!("  {}:", "Saved to".bright_white());
         println!("    {}", output.bright_blue());
+        #[cfg(unix)]
+        println!("    Permissions: 0600 (owner read/write only)");
         println!();
         
         if key_type == "auditor" {
@@ -163,7 +180,6 @@ impl KeygenCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use curve25519_dalek::ristretto::RistrettoPoint;
     
     #[test]
     fn test_elgamal_keypair_generation() {

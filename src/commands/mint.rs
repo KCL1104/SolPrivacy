@@ -1,16 +1,18 @@
+// Allow deprecated spl_token_2022::instruction - migration to spl_token_2022_interface planned
+#![allow(deprecated)]
+
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signer},
-    system_instruction,
     transaction::Transaction,
 };
+use solana_system_interface::instruction as system_instruction;
 use spl_token_2022::{
-    extension::{ExtensionType, confidential_transfer::ConfidentialTransferMint},
+    extension::ExtensionType,
     state::Mint,
     instruction as token_instruction,
     id as token_2022_program_id,
@@ -19,10 +21,9 @@ use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
     instruction::create_associated_token_account,
 };
-use std::str::FromStr;
-use std::time::Duration;
 use crate::config::AppConfig;
 use crate::error::{Result, SolPrivacyError};
+use crate::validation::validate_pubkey;
 
 /// Create and manage Token-2022 confidential tokens
 #[derive(Args)]
@@ -98,6 +99,7 @@ impl MintCommand {
         }
     }
     
+    #[allow(clippy::too_many_arguments)]
     async fn create_mint(
         &self, 
         name: &str, 
@@ -423,8 +425,7 @@ impl MintCommand {
         let config = AppConfig::load()?;
         let rpc_url = config.get_rpc_url();
         
-        let mint_pubkey = Pubkey::from_str(mint_address)
-            .map_err(|e| SolPrivacyError::Other(format!("Invalid address: {}", e)))?;
+        let mint_pubkey = validate_pubkey(mint_address)?;
         
         let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
         
@@ -465,13 +466,11 @@ impl MintCommand {
         let config = AppConfig::load()?;
         let client = RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
         
-        let account_pubkey = Pubkey::from_str(account)
-            .map_err(|e| SolPrivacyError::Other(format!("Invalid address: {}", e)))?;
+        let account_pubkey = validate_pubkey(account)?;
         
         // If mint is provided, calculate ATA
         let token_account = if let Some(mint_str) = mint {
-            let mint_pubkey = Pubkey::from_str(mint_str)
-                .map_err(|e| SolPrivacyError::Other(format!("Invalid mint: {}", e)))?;
+            let mint_pubkey = validate_pubkey(mint_str)?;
             get_associated_token_address_with_program_id(
                 &account_pubkey,
                 &mint_pubkey,

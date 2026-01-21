@@ -1,11 +1,13 @@
-use clap::{Args, Subcommand};
+// Allow deprecated spl_token_2022::instruction - migration to spl_token_2022_interface planned
+#![allow(deprecated)]
+
+use clap::Args;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    pubkey::Pubkey,
-    signature::{read_keypair_file, Keypair, Signer},
+    signature::{read_keypair_file, Signer},
     transaction::Transaction,
 };
 use spl_token_2022::{
@@ -16,9 +18,9 @@ use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
     instruction::create_associated_token_account,
 };
-use std::str::FromStr;
 use crate::config::AppConfig;
 use crate::error::{Result, SolPrivacyError};
+use crate::validation::{validate_pubkey, ui_amount_to_amount};
 
 /// Transfer tokens (supports confidential mode)
 #[derive(Args)]
@@ -57,11 +59,12 @@ impl TransferCommand {
         let config = AppConfig::load()?;
         let rpc_url = config.get_rpc_url();
         
-        // Parse addresses
-        let mint_pubkey = Pubkey::from_str(&self.mint)
-            .map_err(|e| SolPrivacyError::Other(format!("Invalid mint: {}", e)))?;
-        let recipient = Pubkey::from_str(&self.to)
-            .map_err(|e| SolPrivacyError::Other(format!("Invalid recipient: {}", e)))?;
+        // Parse and validate addresses
+        let mint_pubkey = validate_pubkey(&self.mint)?;
+        let recipient = validate_pubkey(&self.to)?;
+        
+        // Validate amount (using 9 decimals as default for SPL tokens)
+        let _amount_raw = ui_amount_to_amount(self.amount, 9)?;
         
         println!("  {}:", "Transfer Details".bright_white());
         println!("  ├─ Mint: {}...", &self.mint[..16.min(self.mint.len())]);
@@ -76,27 +79,31 @@ impl TransferCommand {
         println!();
         
         if self.confidential {
-            println!("{} Confidential transfer requires additional setup", "⚠".bright_yellow());
-            println!("  Token accounts must be configured for confidential transfers.");
-            println!("  Use: solprivacy account configure-confidential --account <ADDR>");
+            println!("{} Confidential Transfer Mode", "→".bright_cyan());
+            println!();
+            println!("  Confidential transfers use encrypted amounts with ZK proofs.");
+            println!("  Use the dedicated confidential command for full workflow:");
+            println!();
+            println!("  {}:", "Quick Transfer".bright_white());
+            println!("    solprivacy confidential transfer \\");
+            println!("      --mint {} \\", self.mint);
+            println!("      --to {} \\", self.to);
+            println!("      --amount {} \\", self.amount);
+            println!("      --elgamal-keypair <YOUR_ELGAMAL_KEY>");
+            println!();
+            println!("  {}:", "Full Workflow".bright_white());
+            println!("    solprivacy confidential workflow");
             println!();
             
             if self.dry_run {
-                println!("{} Dry run - confidential transfer simulation", "ℹ".bright_blue());
+                println!("{} Dry run - showing confidential transfer info", "ℹ".bright_blue());
                 println!();
-                println!("  Steps for confidential transfer:");
-                println!("    1. Configure source account for confidential mode");
-                println!("    2. Deposit tokens to pending balance");
-                println!("    3. Apply pending balance");
-                println!("    4. Transfer (with ZK proof)");
-                return Ok(());
+                println!("  {}:", "Prerequisites".bright_white());
+                println!("    1. Token account configured for confidential mode");
+                println!("    2. Tokens deposited to confidential balance");
+                println!("    3. Pending balance applied");
+                println!("    4. ElGamal keypair for encryption");
             }
-            
-            // For now, show guidance
-            println!("  Full confidential transfer implementation:");
-            println!("    - Requires ZK proof generation");
-            println!("    - Uses ElGamal encryption for amounts");
-            println!("    - Coming in next version");
             return Ok(());
         }
         

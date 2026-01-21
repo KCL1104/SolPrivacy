@@ -2,10 +2,11 @@ use clap::Args;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    signature::Signature,
-};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::signature::Signature;
+use curve25519_dalek::scalar::Scalar;
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
+use curve25519_dalek::ristretto::CompressedRistretto;
 use std::str::FromStr;
 use crate::config::AppConfig;
 use crate::error::{Result, SolPrivacyError};
@@ -233,35 +234,81 @@ impl DebugCommand {
             &keypair.secret_key
         ).map_err(|e| SolPrivacyError::Crypto(format!("Failed to decode secret key: {}", e)))?;
         
-        println!("  ├─ Secret Key: {} bytes loaded", secret_bytes.len());
-        println!("  │");
+        // Decode the public key
+        let public_bytes = base64::Engine::decode(
+            &base64::engine::general_purpose::STANDARD,
+            &keypair.public_key
+        ).map_err(|e| SolPrivacyError::Crypto(format!("Failed to decode public key: {}", e)))?;
         
-        // In production, this would:
-        // 1. Parse the transaction's inner instructions
-        // 2. Extract ConfidentialTransfer instruction data
-        // 3. Deserialize the ElGamalCiphertext structs
-        // 4. Use solana_zk_sdk::encryption::elgamal::ElGamalSecretKey::decrypt()
+        // Verify the keypair is valid ElGamal on Ristretto255
+        println!("  {}:", "Key Verification".bright_white());
         
-        println!("  ├─ {}:", "Decryption Result".bright_green());
-        println!("  │  ┌─────────────────────────────────────────┐");
-        println!("  │  │ {}                      │", "Transaction Amounts".bright_white());
-        println!("  │  ├─────────────────────────────────────────┤");
-        println!("  │  │ Transfer Amount:  [Pending Decrypt]     │");
-        println!("  │  │ Source Balance:   [Pending Decrypt]     │");
-        println!("  │  │ Dest Balance:     [Pending Decrypt]     │");
-        println!("  │  └─────────────────────────────────────────┘");
+        if secret_bytes.len() != 32 {
+            println!("  └─ {} Secret key invalid length: {} (expected 32)", "✗".bright_red(), secret_bytes.len());
+            return Ok(());
+        }
+        
+        if public_bytes.len() != 32 {
+            println!("  └─ {} Public key invalid length: {} (expected 32)", "✗".bright_red(), public_bytes.len());
+            return Ok(());
+        }
+        
+        // Load secret scalar
+        let mut secret_arr = [0u8; 32];
+        secret_arr.copy_from_slice(&secret_bytes);
+        let secret_scalar = Scalar::from_bytes_mod_order(secret_arr);
+        
+        // Verify public key = secret * G
+        let computed_public = &secret_scalar * RISTRETTO_BASEPOINT_TABLE;
+        let computed_compressed = computed_public.compress();
+        
+        // Load stored public key
+        let mut public_arr = [0u8; 32];
+        public_arr.copy_from_slice(&public_bytes);
+        let stored_compressed = CompressedRistretto(public_arr);
+        
+        if computed_compressed == stored_compressed {
+            println!("  ├─ {} Keypair is valid ElGamal on Ristretto255", "✓".bright_green());
+            println!("  ├─ {} Public key matches secret key (P = s·G)", "✓".bright_green());
+        } else {
+            println!("  └─ {} Keypair verification failed!", "✗".bright_red());
+            println!("       Stored public key does not match computed key.");
+            return Ok(());
+        }
+        
         println!("  │");
-        println!("  └─ {} Full ElGamal decryption requires ciphertext extraction", "ℹ".bright_blue());
+        println!("  {}:", "Decryption Capability".bright_white());
+        println!("  │");
+        println!("  │  This auditor key can decrypt ElGamal ciphertexts encrypted to it.");
+        println!("  │");
+        println!("  │  {}:", "How ElGamal Decryption Works".bright_cyan());
+        println!("  │    Given ciphertext (C₁, C₂):");
+        println!("  │      • C₁ = r·G (ephemeral public key)");
+        println!("  │      • C₂ = m·G + r·P (encrypted message)");
+        println!("  │    Decrypt: m·G = C₂ - s·C₁");
+        println!("  │    Then solve discrete log for small values");
+        println!("  │");
+        println!("  └─ {} Key ready for decryption", "✓".bright_green());
         println!();
-        println!("  {}:", "Technical Details".bright_white());
-        println!("    • ElGamal encryption uses curve25519");
-        println!("    • Ciphertext is embedded in instruction data");
-        println!("    • Decryption: plaintext = ciphertext.decrypt(secret_key)");
+        
+        // Explain current limitations
+        println!("  {}:", "Transaction Decryption Status".bright_yellow());
+        println!("  │");
+        println!("  │  To decrypt this transaction's confidential amounts:");
+        println!("  │");
+        println!("  │  1. Extract ElGamal ciphertext from transaction data");
+        println!("  │     (ConfidentialTransfer instruction encodes ciphertext)");
+        println!("  │");
+        println!("  │  2. Apply decryption: m·G = C₂ - s·C₁");
+        println!("  │");
+        println!("  │  3. Solve discrete log for amount (baby-step giant-step)");
+        println!("  │     Works for amounts < 2^40 (~1 trillion smallest units)");
+        println!("  │");
+        println!("  └─ Full implementation requires parsing Token-2022 instruction data");
         println!();
-        println!("  {}:", "Next Steps".bright_white());
-        println!("    1. Ensure the auditor key matches the token's auditor config");
-        println!("    2. The token issuer must have enabled auditor mode on mint");
-        println!("    3. Use 'solprivacy debug --tx <SIG> --raw' to see raw data");
+        println!("  {}:", "Alternative: Use spl-token CLI".bright_white());
+        println!("    spl-token decode-confidential-transfer-extension \\");
+        println!("      --auditor-key {} <ACCOUNT>", key_path);
         
         Ok(())
     }
@@ -328,7 +375,7 @@ impl DebugCommand {
                     
                     if self.raw {
                         let json = serde_json::to_string_pretty(&tx)
-                            .map_err(|e| SolPrivacyError::Serde(e))?;
+                            .map_err(SolPrivacyError::Serde)?;
                         println!("\n{}", json);
                     }
                 }

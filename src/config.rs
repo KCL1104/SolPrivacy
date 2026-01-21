@@ -19,7 +19,7 @@ fn default_network() -> String {
     "devnet".to_string()
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RpcConfig {
     /// Helius API key
     pub helius_api_key: Option<String>,
@@ -30,6 +30,9 @@ pub struct RpcConfig {
     /// Custom RPC URL
     pub custom_rpc_url: Option<String>,
     
+    /// Photon RPC URL for ZK Compression (Light Protocol)
+    pub photon_url: Option<String>,
+    
     /// Active provider: "helius", "quicknode", "custom", or "default"
     #[serde(default = "default_provider")]
     pub active_provider: String,
@@ -37,6 +40,18 @@ pub struct RpcConfig {
 
 fn default_provider() -> String {
     "default".to_string()
+}
+
+impl Default for RpcConfig {
+    fn default() -> Self {
+        Self {
+            helius_api_key: None,
+            quicknode_endpoint: None,
+            custom_rpc_url: None,
+            photon_url: None,
+            active_provider: default_provider(),
+        }
+    }
 }
 
 impl Default for AppConfig {
@@ -121,5 +136,122 @@ impl AppConfig {
             "localnet" => "http://127.0.0.1:8899".to_string(),
             _ => "https://api.devnet.solana.com".to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = AppConfig::default();
+        assert_eq!(config.network, "devnet");
+        assert_eq!(config.rpc.active_provider, "default");
+        assert!(config.rpc.helius_api_key.is_none());
+    }
+
+    #[test]
+    fn test_default_rpc_url_devnet() {
+        let config = AppConfig::default();
+        let url = config.get_rpc_url();
+        assert_eq!(url, "https://api.devnet.solana.com");
+    }
+
+    #[test]
+    fn test_default_rpc_url_mainnet() {
+        let config = AppConfig {
+            network: "mainnet".to_string(),
+            rpc: RpcConfig::default(),
+        };
+        let url = config.get_rpc_url();
+        assert_eq!(url, "https://api.mainnet-beta.solana.com");
+    }
+
+    #[test]
+    fn test_default_rpc_url_localnet() {
+        let config = AppConfig {
+            network: "localnet".to_string(),
+            rpc: RpcConfig::default(),
+        };
+        let url = config.get_rpc_url();
+        assert_eq!(url, "http://127.0.0.1:8899");
+    }
+
+    #[test]
+    fn test_helius_rpc_url_devnet() {
+        let config = AppConfig {
+            network: "devnet".to_string(),
+            rpc: RpcConfig {
+                helius_api_key: Some("test-key".to_string()),
+                active_provider: "helius".to_string(),
+                ..Default::default()
+            },
+        };
+        let url = config.get_rpc_url();
+        assert!(url.contains("devnet.helius-rpc.com"));
+        assert!(url.contains("test-key"));
+    }
+
+    #[test]
+    fn test_helius_rpc_url_mainnet() {
+        let config = AppConfig {
+            network: "mainnet".to_string(),
+            rpc: RpcConfig {
+                helius_api_key: Some("test-key".to_string()),
+                active_provider: "helius".to_string(),
+                ..Default::default()
+            },
+        };
+        let url = config.get_rpc_url();
+        assert!(url.contains("mainnet.helius-rpc.com"));
+        assert!(url.contains("test-key"));
+    }
+
+    #[test]
+    fn test_custom_rpc_url() {
+        let config = AppConfig {
+            network: "devnet".to_string(),
+            rpc: RpcConfig {
+                custom_rpc_url: Some("https://custom.rpc.com".to_string()),
+                active_provider: "custom".to_string(),
+                ..Default::default()
+            },
+        };
+        let url = config.get_rpc_url();
+        assert_eq!(url, "https://custom.rpc.com");
+    }
+
+    #[test]
+    fn test_helius_without_key_falls_back() {
+        let config = AppConfig {
+            network: "devnet".to_string(),
+            rpc: RpcConfig {
+                helius_api_key: None,
+                active_provider: "helius".to_string(),
+                ..Default::default()
+            },
+        };
+        let url = config.get_rpc_url();
+        // Should fall back to default since no API key
+        assert_eq!(url, "https://api.devnet.solana.com");
+    }
+
+    #[test]
+    fn test_config_serialization() {
+        let config = AppConfig {
+            network: "mainnet".to_string(),
+            rpc: RpcConfig {
+                helius_api_key: Some("test-key".to_string()),
+                active_provider: "helius".to_string(),
+                ..Default::default()
+            },
+        };
+        
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        
+        assert_eq!(parsed.network, "mainnet");
+        assert_eq!(parsed.rpc.helius_api_key, Some("test-key".to_string()));
     }
 }

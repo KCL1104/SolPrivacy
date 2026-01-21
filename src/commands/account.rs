@@ -1,9 +1,8 @@
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    pubkey::Pubkey,
     signature::{read_keypair_file, Signer},
     transaction::Transaction,
 };
@@ -12,9 +11,9 @@ use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
     instruction::create_associated_token_account,
 };
-use std::str::FromStr;
 use crate::config::AppConfig;
 use crate::error::{Result, SolPrivacyError};
+use crate::validation::validate_pubkey;
 
 /// Manage token accounts
 #[derive(Args)]
@@ -57,6 +56,17 @@ pub enum AccountAction {
         #[arg(short, long, env = "SOLANA_KEYPAIR")]
         keypair: Option<String>,
     },
+    
+    /// Configure account for confidential transfers
+    ConfigureConfidential {
+        /// Token account address (ATA)
+        #[arg(short, long)]
+        account: String,
+        
+        /// Mint address
+        #[arg(short, long)]
+        mint: String,
+    },
 }
 
 impl AccountCommand {
@@ -71,7 +81,42 @@ impl AccountCommand {
             AccountAction::List { wallet, keypair } => {
                 self.list_accounts(wallet.as_deref(), keypair.as_deref()).await
             }
+            AccountAction::ConfigureConfidential { account, mint } => {
+                self.configure_confidential(account, mint).await
+            }
         }
+    }
+    
+    async fn configure_confidential(&self, account: &str, mint: &str) -> Result<()> {
+        println!("{} Configure Account for Confidential Transfers", "→".bright_cyan());
+        println!("{}", "─".repeat(50).bright_black());
+        println!();
+        
+        println!("  {}:", "Account Details".bright_white());
+        println!("  ├─ Account: {}...", &account[..16.min(account.len())]);
+        println!("  └─ Mint: {}...", &mint[..16.min(mint.len())]);
+        println!();
+        
+        println!("  {}:", "Redirecting to Confidential Command".bright_white());
+        println!();
+        println!("  For full confidential transfer configuration, use:");
+        println!();
+        println!("    solprivacy confidential configure \\");
+        println!("      --account {} \\", account);
+        println!("      --mint {} \\", mint);
+        println!("      --elgamal-keypair <PATH_TO_ELGAMAL_KEY>");
+        println!();
+        println!("  {}:", "Prerequisites".bright_white());
+        println!("    1. Generate ElGamal keypair:");
+        println!("       solprivacy keygen elgamal -o elgamal.json");
+        println!();
+        println!("    2. Ensure account has the ConfidentialTransfer extension");
+        println!("       (created during mint with confidential extension)");
+        println!();
+        println!("  {}:", "Full Workflow".bright_white());
+        println!("    solprivacy confidential workflow");
+        
+        Ok(())
     }
     
     async fn create_account(
@@ -87,8 +132,7 @@ impl AccountCommand {
         let config = AppConfig::load()?;
         let rpc_url = config.get_rpc_url();
         
-        let mint_pubkey = Pubkey::from_str(mint)
-            .map_err(|e| SolPrivacyError::Other(format!("Invalid mint: {}", e)))?;
+        let mint_pubkey = validate_pubkey(mint)?;
         
         // Load keypair
         let keypair_path = match keypair_path {
@@ -112,8 +156,7 @@ impl AccountCommand {
             .map_err(|e| SolPrivacyError::Crypto(format!("Failed to read keypair: {}", e)))?;
         
         let owner_pubkey = match owner {
-            Some(o) => Pubkey::from_str(o)
-                .map_err(|e| SolPrivacyError::Other(format!("Invalid owner: {}", e)))?,
+            Some(o) => validate_pubkey(o)?,
             None => payer.pubkey(),
         };
         
@@ -187,8 +230,7 @@ impl AccountCommand {
         let config = AppConfig::load()?;
         let client = RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
         
-        let account_pubkey = Pubkey::from_str(account)
-            .map_err(|e| SolPrivacyError::Other(format!("Invalid account: {}", e)))?;
+        let account_pubkey = validate_pubkey(account)?;
         
         match client.get_account(&account_pubkey) {
             Ok(acc) => {
@@ -229,8 +271,7 @@ impl AccountCommand {
         let client = RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
         
         let wallet_pubkey = match wallet {
-            Some(w) => Pubkey::from_str(w)
-                .map_err(|e| SolPrivacyError::Other(format!("Invalid wallet: {}", e)))?,
+            Some(w) => validate_pubkey(w)?,
             None => {
                 let keypair_path = match keypair_path {
                     Some(p) => p.to_string(),
