@@ -3,7 +3,7 @@ use colored::Colorize;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use crate::error::Result;
+use crate::error::{Result, SolPrivacyError};
 
 /// Zero-Knowledge proof operations using Noir circuits
 #[derive(Args)]
