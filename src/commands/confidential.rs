@@ -1,5 +1,6 @@
 use clap::{Args, Subcommand};
 use colored::Colorize;
+use std::process::Command;
 use solana_client::rpc_client::RpcClient;
 use solana_commitment_config::CommitmentConfig;
 use spl_token_2022::id as token_2022_program_id;
@@ -7,6 +8,7 @@ use spl_associated_token_account::get_associated_token_address_with_program_id;
 use crate::config::AppConfig;
 use crate::error::{Result, SolPrivacyError};
 use crate::validation::validate_pubkey;
+use solana_sdk::signature::{read_keypair_file, Signer};
 
 /// Confidential transfer operations for Token-2022
 #[derive(Args)]
@@ -268,15 +270,16 @@ impl ConfidentialCommand {
         if dry_run {
             println!("{} Dry run - showing configuration steps", "ℹ".bright_blue());
         } else {
-            println!("{} Configuration requires solana-zk-sdk for proof generation", "⚠".bright_yellow());
-            println!();
-            println!("  The Token-2022 confidential transfer extension requires ZK proofs");
-            println!("  that must be generated using the solana-zk-sdk crate.");
-            println!();
-            println!("  For now, use the Solana CLI directly:");
-            println!("    spl-token configure-confidential-transfer-account \\");
-            println!("      --address {} \\", account);
-            println!("      --elgamal-keypair <ELGAMAL_KEYPAIR_PATH>");
+            println!("{} Executing configuration...", "→".bright_cyan());
+            
+            let mut args = vec!["configure-confidential-transfer-account", "--address", account];
+            if let Some(path) = elgamal_keypair {
+                args.push("--elgamal-keypair");
+                args.push(path);
+            }
+            
+            self.run_spl_token_command(&args)?;
+            println!("{} Configuration complete!", "✓".bright_green());
         }
         
         Ok(())
@@ -353,10 +356,53 @@ impl ConfidentialCommand {
             println!("    solprivacy confidential apply --account {}", account);
         } else {
             println!("{} Executing deposit...", "→".bright_cyan());
-            println!();
-            println!("  Use the Solana CLI for deposit:");
-            println!("    spl-token deposit-confidential-tokens {} {} \\", mint, amount);
-            println!("      --address {}", account);
+            
+            // 1. Load Payer
+            let keypair_path_str = resolve_keypair_path(keypair_path)?;
+            let payer = read_keypair_file(&keypair_path_str)
+                .map_err(|e| SolPrivacyError::Crypto(format!("Failed to read keypair: {}", e)))?;
+                
+            // 2. Connect to RPC
+            let client = RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
+            
+            // 3. Build Instruction
+            // spl_token_2022::extension::confidential_transfer::instruction::deposit(
+            //   token_program_id,
+            //   token_account,
+            //   mint,
+            //   authority,
+            //   amount,
+            //   decimals
+            // )
+            let account_pubkey = validate_pubkey(account)?;
+            let mint_pubkey = validate_pubkey(mint)?;
+            
+            let deposit_ix = spl_token_2022::extension::confidential_transfer::instruction::deposit(
+                &token_2022_program_id(),
+                &account_pubkey,
+                &mint_pubkey,
+                raw_amount,
+                decimals,
+                &payer.pubkey(),
+                &[], // multisig signers
+            ).map_err(|e| SolPrivacyError::Other(format!("Failed to create deposit instruction: {}", e)))?;
+            
+            // 4. Send Transaction
+            let blockhash = client.get_latest_blockhash()
+                .map_err(|e| SolPrivacyError::Rpc(format!("Failed to get blockhash: {}", e)))?;
+                
+            let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(
+                &[deposit_ix],
+                Some(&payer.pubkey()),
+                &[&payer],
+                blockhash,
+            );
+            
+            let signature = client.send_and_confirm_transaction(&transaction)
+                .map_err(|e| SolPrivacyError::Rpc(format!("Transaction failed: {}", e)))?;
+                
+            println!("{} Deposit complete!", "✓".bright_green());
+            println!("  Signature: {}", signature);
         }
         
         Ok(())
@@ -412,12 +458,16 @@ impl ConfidentialCommand {
         if dry_run {
             println!("{} Dry run - no transaction sent", "ℹ".bright_blue());
         } else {
-            println!("{} Apply requires ElGamal secret key", "→".bright_cyan());
-            println!();
-            println!("  Use the Solana CLI:");
-            println!("    spl-token apply-pending-balance \\");
-            println!("      --address {} \\", account);
-            println!("      --elgamal-keypair <ELGAMAL_KEYPAIR_PATH>");
+            println!("{} Executing apply...", "→".bright_cyan());
+            
+            let mut args = vec!["apply-pending-balance", "--address", account];
+            if let Some(path) = elgamal_keypair {
+                args.push("--elgamal-keypair");
+                args.push(path);
+            }
+            
+            self.run_spl_token_command(&args)?;
+            println!("{} Pending balance applied!", "✓".bright_green());
         }
         
         Ok(())
@@ -472,11 +522,18 @@ impl ConfidentialCommand {
         if dry_run {
             println!("{} Dry run - no transaction sent", "ℹ".bright_blue());
         } else {
-            println!("{} Confidential Transfer Execution", "→".bright_cyan());
-            println!();
-            println!("  Use the Solana CLI:");
-            println!("    spl-token transfer {} {} {} \\", mint, amount, to);
-            println!("      --confidential");
+            println!("{} Executing confidential transfer...", "→".bright_cyan());
+            
+            let amount_str = amount.to_string();
+            let mut args = vec!["transfer", mint, &amount_str, to, "--confidential"];
+            
+            if let Some(path) = elgamal_keypair {
+                args.push("--elgamal-keypair");
+                args.push(path);
+            }
+            
+            self.run_spl_token_command(&args)?;
+            println!("{} Transfer complete!", "✓".bright_green());
         }
         
         Ok(())
@@ -559,12 +616,18 @@ impl ConfidentialCommand {
         if dry_run {
             println!("{} Dry run - no transaction sent", "ℹ".bright_blue());
         } else {
-            println!("{} Withdraw requires ZK range proof", "→".bright_cyan());
-            println!();
-            println!("  Use the Solana CLI:");
-            println!("    spl-token withdraw-confidential-tokens {} {} \\", mint, amount);
-            println!("      --address {} \\", account);
-            println!("      --elgamal-keypair <ELGAMAL_KEYPAIR_PATH>");
+            println!("{} Executing withdraw...", "→".bright_cyan());
+            
+            let amount_str = amount.to_string();
+            let mut args = vec!["withdraw-confidential-tokens", mint, &amount_str, "--address", account];
+            
+            if let Some(path) = elgamal_keypair {
+                args.push("--elgamal-keypair");
+                args.push(path);
+            }
+            
+            self.run_spl_token_command(&args)?;
+            println!("{} Withdraw complete!", "✓".bright_green());
         }
         
         Ok(())
@@ -721,6 +784,21 @@ impl ConfidentialCommand {
         Ok(())
     }
     
+    fn run_spl_token_command(&self, args: &[&str]) -> Result<()> {
+        println!("Running: spl-token {}", args.join(" "));
+        let output = Command::new("spl-token")
+            .args(args)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .output()
+            .map_err(|e| SolPrivacyError::ToolMissing(format!("Failed to execute spl-token: {}. Is it installed?", e)))?;
+
+        if !output.status.success() {
+            return Err(SolPrivacyError::CommandFailed("spl-token command failed".to_string()));
+        }
+        Ok(())
+    }
+
     async fn show_workflow(&self) -> Result<()> {
         println!("{} Token-2022 Confidential Transfer Workflow", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());

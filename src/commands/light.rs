@@ -181,6 +181,21 @@ impl LightCommand {
         "http://127.0.0.1:8899".to_string()
     }
     
+    fn run_light_command(&self, args: &[&str]) -> Result<()> {
+        println!("Running: light {}", args.join(" "));
+        let output = Command::new("light")
+            .args(args)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .output()
+            .map_err(|e| crate::error::SolPrivacyError::ToolMissing(format!("light: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(crate::error::SolPrivacyError::CommandFailed("light command failed".to_string()));
+        }
+        Ok(())
+    }
+
     async fn configure(&self, rpc_url: Option<String>, show: bool) -> Result<()> {
         println!("{} Light Protocol Configuration", "→".bright_cyan());
         println!("{}", "─".repeat(50).bright_black());
@@ -673,24 +688,8 @@ impl LightCommand {
         println!("{} Running: light create-mint --decimals {}", "→".bright_cyan(), decimals);
         println!();
         
-        let output = Command::new("light")
-            .args(["create-mint", "--decimals", &decimals.to_string()])
-            .output();
-        
-        match output {
-            Ok(o) => {
-                if o.status.success() {
-                    println!("{} Mint created!", "✓".bright_green());
-                    println!("{}", String::from_utf8_lossy(&o.stdout));
-                } else {
-                    println!("{} Command failed", "✗".bright_red());
-                    println!("{}", String::from_utf8_lossy(&o.stderr));
-                }
-            }
-            Err(e) => {
-                println!("{} Failed to run light CLI: {}", "✗".bright_red(), e);
-            }
-        }
+        self.run_light_command(&["create-mint", "--decimals", &decimals.to_string()])?;
+        println!("{} Mint created!", "✓".bright_green());
         
         Ok(())
     }
@@ -711,24 +710,8 @@ impl LightCommand {
         println!("  Amount: {}", amount);
         println!();
         
-        let output = Command::new("light")
-            .args(["mint-to", "--mint", mint, "--to", to, "--amount", &amount.to_string()])
-            .output();
-        
-        match output {
-            Ok(o) => {
-                if o.status.success() {
-                    println!("{} Tokens minted!", "✓".bright_green());
-                    println!("{}", String::from_utf8_lossy(&o.stdout));
-                } else {
-                    println!("{} Command failed", "✗".bright_red());
-                    println!("{}", String::from_utf8_lossy(&o.stderr));
-                }
-            }
-            Err(e) => {
-                println!("{} Failed to run light CLI: {}", "✗".bright_red(), e);
-            }
-        }
+        self.run_light_command(&["mint-to", "--mint", mint, "--to", to, "--amount", &amount.to_string()])?;
+        println!("{} Tokens minted!", "✓".bright_green());
         
         Ok(())
     }
@@ -749,24 +732,8 @@ impl LightCommand {
         println!("  Amount: {}", amount);
         println!();
         
-        let output = Command::new("light")
-            .args(["transfer", "--mint", mint, "--to", to, "--amount", &amount.to_string()])
-            .output();
-        
-        match output {
-            Ok(o) => {
-                if o.status.success() {
-                    println!("{} Transfer complete!", "✓".bright_green());
-                    println!("{}", String::from_utf8_lossy(&o.stdout));
-                } else {
-                    println!("{} Command failed", "✗".bright_red());
-                    println!("{}", String::from_utf8_lossy(&o.stderr));
-                }
-            }
-            Err(e) => {
-                println!("{} Failed to run light CLI: {}", "✗".bright_red(), e);
-            }
-        }
+        self.run_light_command(&["transfer", "--mint", mint, "--to", to, "--amount", &amount.to_string()])?;
+        println!("{} Transfer complete!", "✓".bright_green());
         
         Ok(())
     }
@@ -787,28 +754,13 @@ impl LightCommand {
         
         let lamports = (amount * 1_000_000_000.0) as u64;
         
-        let output = Command::new("light")
-            .args(["compress-sol", "--lamports", &lamports.to_string()])
-            .output();
+        self.run_light_command(&["compress-sol", "--lamports", &lamports.to_string()])?;
         
-        match output {
-            Ok(o) => {
-                if o.status.success() {
-                    println!("{} SOL compressed!", "✓".bright_green());
-                    println!("{}", String::from_utf8_lossy(&o.stdout));
-                    println!();
-                    println!("  {}:", "Next Steps".bright_white());
-                    println!("    • Check balance: solprivacy light balance --owner <YOUR_PUBKEY>");
-                    println!("    • Transfer: solprivacy light transfer --mint <SOL> --to <RECIPIENT> --amount <LAMPORTS>");
-                } else {
-                    println!("{} Command failed", "✗".bright_red());
-                    println!("{}", String::from_utf8_lossy(&o.stderr));
-                }
-            }
-            Err(e) => {
-                println!("{} Failed to run light CLI: {}", "✗".bright_red(), e);
-            }
-        }
+        println!("{} SOL compressed!", "✓".bright_green());
+        println!();
+        println!("  {}:", "Next Steps".bright_white());
+        println!("    • Check balance: solprivacy light balance --owner <YOUR_PUBKEY>");
+        println!("    • Transfer: solprivacy light transfer --mint <SOL> --to <RECIPIENT> --amount <LAMPORTS>");
         
         Ok(())
     }
@@ -829,24 +781,8 @@ impl LightCommand {
         
         let lamports = (amount * 1_000_000_000.0) as u64;
         
-        let output = Command::new("light")
-            .args(["decompress-sol", "--lamports", &lamports.to_string()])
-            .output();
-        
-        match output {
-            Ok(o) => {
-                if o.status.success() {
-                    println!("{} SOL decompressed!", "✓".bright_green());
-                    println!("{}", String::from_utf8_lossy(&o.stdout));
-                } else {
-                    println!("{} Command failed", "✗".bright_red());
-                    println!("{}", String::from_utf8_lossy(&o.stderr));
-                }
-            }
-            Err(e) => {
-                println!("{} Failed to run light CLI: {}", "✗".bright_red(), e);
-            }
-        }
+        self.run_light_command(&["decompress-sol", "--lamports", &lamports.to_string()])?;
+        println!("{} SOL decompressed!", "✓".bright_green());
         
         Ok(())
     }

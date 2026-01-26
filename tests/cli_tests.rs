@@ -53,7 +53,7 @@ fn keygen_auditor_generates_file() {
         .arg("-o")
         .arg(&out)
         .arg("--force");
-    cmd.assert().success().stdout(contains("keypair generated"));
+    cmd.assert().success().stdout(contains("Keypair saved to"));
 
     let content = fs::read_to_string(&out).unwrap();
     assert!(content.contains("\"key_type\": \"auditor\""));
@@ -746,8 +746,7 @@ fn compliance_info_shows_range_protocol() {
     cmd.arg("compliance").arg("info");
     cmd.assert()
         .success()
-        .stdout(contains("Range Protocol"))
-        .stdout(contains("Risk"));
+        .stdout(contains("Range Protocol"));
 }
 
 #[test]

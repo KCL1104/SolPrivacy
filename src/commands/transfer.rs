@@ -21,6 +21,8 @@ use spl_associated_token_account::{
 use crate::config::AppConfig;
 use crate::error::{Result, SolPrivacyError};
 use crate::validation::{validate_pubkey, ui_amount_to_amount};
+use crate::commands::confidential::{ConfidentialCommand, ConfidentialAction};
+use crate::error_decoder::decode_transaction_error;
 
 /// Transfer tokens (supports confidential mode)
 #[derive(Args)]
@@ -44,6 +46,10 @@ pub struct TransferCommand {
     /// Use confidential transfer (encrypted amounts)
     #[arg(long)]
     pub confidential: bool,
+
+    /// Path to ElGamal keypair (required for confidential transfer)
+    #[arg(long)]
+    pub elgamal_keypair: Option<String>,
     
     /// Dry run - simulate without sending
     #[arg(long)]
@@ -80,31 +86,20 @@ impl TransferCommand {
         
         if self.confidential {
             println!("{} Confidential Transfer Mode", "→".bright_cyan());
+            println!("  Redirecting to confidential module...");
             println!();
-            println!("  Confidential transfers use encrypted amounts with ZK proofs.");
-            println!("  Use the dedicated confidential command for full workflow:");
-            println!();
-            println!("  {}:", "Quick Transfer".bright_white());
-            println!("    solprivacy confidential transfer \\");
-            println!("      --mint {} \\", self.mint);
-            println!("      --to {} \\", self.to);
-            println!("      --amount {} \\", self.amount);
-            println!("      --elgamal-keypair <YOUR_ELGAMAL_KEY>");
-            println!();
-            println!("  {}:", "Full Workflow".bright_white());
-            println!("    solprivacy confidential workflow");
-            println!();
-            
-            if self.dry_run {
-                println!("{} Dry run - showing confidential transfer info", "ℹ".bright_blue());
-                println!();
-                println!("  {}:", "Prerequisites".bright_white());
-                println!("    1. Token account configured for confidential mode");
-                println!("    2. Tokens deposited to confidential balance");
-                println!("    3. Pending balance applied");
-                println!("    4. ElGamal keypair for encryption");
-            }
-            return Ok(());
+
+            let cmd = ConfidentialCommand {
+                action: ConfidentialAction::Transfer {
+                    mint: self.mint.clone(),
+                    to: self.to.clone(),
+                    amount: self.amount,
+                    elgamal_keypair: self.elgamal_keypair.clone(),
+                    keypair: self.keypair.clone(),
+                    dry_run: self.dry_run,
+                }
+            };
+            return cmd.run().await;
         }
         
         // Standard (public) transfer
@@ -217,7 +212,7 @@ impl TransferCommand {
         );
         
         let signature = client.send_and_confirm_transaction(&transaction)
-            .map_err(|e| SolPrivacyError::Other(format!("Transfer failed: {}", e)))?;
+            .map_err(|e| SolPrivacyError::Other(decode_transaction_error(&e.to_string())))?;
         
         pb.finish_and_clear();
         

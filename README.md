@@ -11,6 +11,18 @@ An all-in-one command-line tool for building privacy-preserving applications on 
 
 ---
 
+## 📦 Installation
+
+### One-line Install (Recommended)
+
+```bash
+curl -fsSL https://github.com/user/solprivacy-cli/raw/main/install.sh | sh
+```
+
+### From Releases
+
+Download the latest binary for your platform from the [Releases Page](https://github.com/user/solprivacy-cli/releases).
+
 ## 🚀 Quick Start
 
 ```bash
@@ -421,9 +433,19 @@ solprivacy-cli/
 - [x] Example project cloning
 - [x] Input validation module
 - [x] Solana SDK v3 support
-- [ ] Full confidential transfer workflow
-- [ ] Arcium MXE integration
-- [ ] Shell completions (bash, zsh, fish)
+- [x] Full confidential transfer workflow (Token-2022)
+- [x] Arcium MXE integration
+- [x] Shell completions (bash, zsh, fish)
+
+### Shell Completions
+
+Generate completion scripts for your shell:
+
+```bash
+solprivacy completions bash > ~/.local/share/bash-completion/completions/solprivacy
+# or for zsh
+solprivacy completions zsh > ~/.zfunc/_solprivacy
+```
 
 ---
 

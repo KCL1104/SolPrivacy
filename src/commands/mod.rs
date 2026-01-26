@@ -19,6 +19,9 @@ mod compliance;
 mod helius;
 mod doctor;
 mod quickstart;
+mod wizard;
+mod arcium;
+mod completions;
 
 pub use init::InitCommand;
 pub use config::ConfigCommand;
@@ -41,3 +44,6 @@ pub use compliance::ComplianceCommand;
 pub use helius::HeliusCommand;
 pub use doctor::DoctorCommand;
 pub use quickstart::QuickstartCommand;
+pub use wizard::WizardCommand;
+pub use arcium::ArciumCommand;
+pub use completions::CompletionsCommand;

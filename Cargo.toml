@@ -59,8 +59,20 @@ base64 = "0.22"
 bs58 = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 
+# Key Encryption & Derivation
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+bip39 = "2.0"
+hmac = "0.12"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+rpassword = "7"
+
 # Light Protocol ZK Compression
 light-client = "0.18"
+csv = "1.4.0"
+clap_complete = "4.5.65"
+
 
 [dev-dependencies]
 assert_cmd = "2"

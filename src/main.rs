@@ -4,9 +4,10 @@ use colored::Colorize;
 mod commands;
 mod config;
 mod error;
+mod error_decoder;
 mod validation;
 
-use commands::{ConfigCommand, DebugCommand, InitCommand, KeygenCommand, TemplateCommand, FundCommand, MintCommand, ZkCommand, AccountCommand, TransferCommand, WalletCommand, SetupCommand, DevCommand, LightCommand, DocsCommand, ExamplesCommand, ConfidentialCommand, ComplianceCommand, HeliusCommand, DoctorCommand, QuickstartCommand};
+use commands::{ConfigCommand, DebugCommand, InitCommand, KeygenCommand, TemplateCommand, FundCommand, MintCommand, ZkCommand, AccountCommand, TransferCommand, WalletCommand, SetupCommand, DevCommand, LightCommand, DocsCommand, ExamplesCommand, ConfidentialCommand, ComplianceCommand, HeliusCommand, DoctorCommand, QuickstartCommand, WizardCommand, ArciumCommand, CompletionsCommand};
 use error::Result;
 
 /// SolPrivacy-CLI: Privacy Orchestration Layer for Solana
@@ -88,21 +89,32 @@ enum Commands {
     
     /// Interactive tutorials and getting started guides
     Quickstart(QuickstartCommand),
+
+    /// Interactive privacy lifecycle wizard
+    Wizard(WizardCommand),
+
+    /// Manage Arcium Confidential Computing nodes and projects
+    Arcium(ArciumCommand),
+
+    /// Generate shell completion scripts
+    Completions(CompletionsCommand),
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     
-    // Print banner
-    print_banner();
+    // Print banner (skip for completions to avoid polluting script output)
+    if !matches!(cli.command, Commands::Completions(_)) {
+        print_banner();
+    }
     
     match cli.command {
         Commands::Init(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
         Commands::Debug(cmd) => cmd.run().await,
         Commands::Keygen(cmd) => cmd.run().await,
-        Commands::Template(cmd) => cmd.run().await,
+        Commands::Template(cmd) => cmd.run(),
         Commands::Fund(cmd) => cmd.run().await,
         Commands::Mint(cmd) => cmd.run().await,
         Commands::Zk(cmd) => cmd.run().await,
@@ -119,6 +131,10 @@ async fn main() -> Result<()> {
         Commands::Helius(cmd) => cmd.run().await,
         Commands::Doctor(cmd) => cmd.run().await,
         Commands::Quickstart(cmd) => cmd.run().await,
+
+        Commands::Wizard(cmd) => cmd.run().await,
+        Commands::Arcium(cmd) => cmd.run().await,
+        Commands::Completions(cmd) => cmd.run(),
     }
 }
 
