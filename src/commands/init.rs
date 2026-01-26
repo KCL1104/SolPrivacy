@@ -1,10 +1,10 @@
-use clap::Args;
-use colored::Colorize;
-use dialoguer::{Input, Select, Confirm, theme::ColorfulTheme};
-use std::fs;
-use std::path::Path;
 use crate::config::AppConfig;
 use crate::error::Result;
+use clap::Args;
+use colored::Colorize;
+use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
+use std::fs;
+use std::path::Path;
 
 /// Initialize a new privacy-enabled Solana project
 #[derive(Args)]
@@ -12,11 +12,11 @@ pub struct InitCommand {
     /// Project name
     #[arg(default_value = "my-privacy-app")]
     pub name: String,
-    
+
     /// Privacy stack to use
     #[arg(short, long, value_parser = ["token2022", "privacy-cash", "arcium", "light", "noir"])]
     pub stack: Option<String>,
-    
+
     /// Skip interactive prompts
     #[arg(long)]
     pub no_interactive: bool,
@@ -27,25 +27,28 @@ impl InitCommand {
         println!("{} SolPrivacy Project Initializer", "→".bright_cyan());
         println!("{}", "─".repeat(50).bright_black());
         println!();
-        
+
         let (project_name, stack) = if self.no_interactive {
             // Non-interactive mode
-            let stack = self.stack.clone().unwrap_or_else(|| "token2022".to_string());
+            let stack = self
+                .stack
+                .clone()
+                .unwrap_or_else(|| "token2022".to_string());
             (self.name.clone(), stack)
         } else {
             // Interactive mode
             self.interactive_setup().await?
         };
-        
+
         // Create project
         self.create_project(&project_name, &stack)?;
-        
+
         Ok(())
     }
-    
+
     async fn interactive_setup(&self) -> Result<(String, String)> {
         let theme = ColorfulTheme::default();
-        
+
         // Step 1: Project name
         println!("  {}:", "Step 1/3".bright_white());
         let project_name: String = Input::with_theme(&theme)
@@ -53,9 +56,9 @@ impl InitCommand {
             .default(self.name.clone())
             .interact_text()
             .unwrap_or_else(|_| self.name.clone());
-        
+
         println!();
-        
+
         // Step 2: Select privacy stack
         println!("  {}:", "Step 2/3".bright_white());
         let stacks = vec![
@@ -65,14 +68,14 @@ impl InitCommand {
             "Light Protocol (ZK Compression)",
             "Noir ZK Circuits (Aztec)",
         ];
-        
+
         let stack_idx = Select::with_theme(&theme)
             .with_prompt("  Select privacy stack")
             .items(&stacks)
             .default(0)
             .interact()
             .unwrap_or(0);
-        
+
         let stack = match stack_idx {
             0 => "token2022",
             1 => "privacy-cash",
@@ -80,10 +83,11 @@ impl InitCommand {
             3 => "light",
             4 => "noir",
             _ => "token2022",
-        }.to_string();
-        
+        }
+        .to_string();
+
         println!();
-        
+
         // Step 3: Configure RPC?
         println!("  {}:", "Step 3/3".bright_white());
         let configure_rpc = Confirm::with_theme(&theme)
@@ -91,16 +95,16 @@ impl InitCommand {
             .default(true)
             .interact()
             .unwrap_or(false);
-        
+
         if configure_rpc {
             self.configure_rpc_interactive(&theme).await?;
         }
-        
+
         println!();
-        
+
         Ok((project_name, stack))
     }
-    
+
     async fn configure_rpc_interactive(&self, theme: &ColorfulTheme) -> Result<()> {
         let providers = vec![
             "Helius (recommended)",
@@ -108,14 +112,14 @@ impl InitCommand {
             "Custom RPC",
             "Skip for now",
         ];
-        
+
         let provider_idx = Select::with_theme(theme)
             .with_prompt("  Select RPC provider")
             .items(&providers)
             .default(0)
             .interact()
             .unwrap_or(3);
-        
+
         match provider_idx {
             0 => {
                 // Helius
@@ -123,7 +127,7 @@ impl InitCommand {
                     .with_prompt("  Helius API Key")
                     .interact_text()
                     .unwrap_or_default();
-                
+
                 if !api_key.is_empty() {
                     let mut config = AppConfig::load().unwrap_or_default();
                     config.rpc.active_provider = "helius".to_string();
@@ -138,7 +142,7 @@ impl InitCommand {
                     .with_prompt("  QuickNode Endpoint URL")
                     .interact_text()
                     .unwrap_or_default();
-                
+
                 if !endpoint.is_empty() {
                     let mut config = AppConfig::load().unwrap_or_default();
                     config.rpc.active_provider = "quicknode".to_string();
@@ -153,7 +157,7 @@ impl InitCommand {
                     .with_prompt("  Custom RPC URL")
                     .interact_text()
                     .unwrap_or_default();
-                
+
                 if !url.is_empty() {
                     let mut config = AppConfig::load().unwrap_or_default();
                     config.rpc.active_provider = "custom".to_string();
@@ -166,43 +170,47 @@ impl InitCommand {
                 println!("  {} Skipping RPC configuration", "ℹ".bright_blue());
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn create_project(&self, name: &str, stack: &str) -> Result<()> {
-        println!("{} Creating project: {}", "→".bright_cyan(), name.bright_white());
+        println!(
+            "{} Creating project: {}",
+            "→".bright_cyan(),
+            name.bright_white()
+        );
         println!();
-        
+
         let base_path = Path::new(name);
-        
+
         // Check if directory exists
         if base_path.exists() {
             println!("{} Directory '{}' already exists!", "✗".bright_red(), name);
             println!("  Use a different name or delete the existing directory.");
             return Ok(());
         }
-        
+
         // Create directories
         fs::create_dir_all(base_path.join("src"))?;
         fs::create_dir_all(base_path.join("keys"))?;
-        
+
         println!("  ├─ Created {}/", name);
         println!("  ├─ Created {}/src/", name);
         println!("  ├─ Created {}/keys/", name);
-        
+
         // Generate files based on stack
         self.generate_cargo_toml(base_path, name, stack)?;
         self.generate_main_rs(base_path, stack)?;
         self.generate_readme(base_path, name, stack)?;
         self.generate_gitignore(base_path)?;
-        
+
         println!();
         println!("{} Project created successfully!", "✓".bright_green());
         println!();
         println!("  {}:", "Next Steps".bright_white());
         println!("    1. cd {}", name);
-        
+
         match stack {
             "token2022" => {
                 println!("    2. solprivacy keygen auditor -o keys/auditor.json");
@@ -220,23 +228,30 @@ impl InitCommand {
                 println!("    2. cargo build && cargo run");
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn generate_cargo_toml(&self, base_path: &Path, name: &str, stack: &str) -> Result<()> {
         let deps = match stack {
-            "token2022" => r#"solana-sdk = "2"
+            "token2022" => {
+                r#"solana-sdk = "2"
 solana-client = "2"
-spl-token-2022 = "6""#,
-            "privacy-cash" => r#"solana-sdk = "2"
-# privacy-cash = "0.2"  # Uncomment when available"#,
-            "light" => r#"solana-sdk = "2"
-# light-sdk = "0.x"  # Add when ready"#,
+spl-token-2022 = "6""#
+            }
+            "privacy-cash" => {
+                r#"solana-sdk = "2"
+# privacy-cash = "0.2"  # Uncomment when available"#
+            }
+            "light" => {
+                r#"solana-sdk = "2"
+# light-sdk = "0.x"  # Add when ready"#
+            }
             _ => r#"solana-sdk = "2""#,
         };
-        
-        let cargo_toml = format!(r#"[package]
+
+        let cargo_toml = format!(
+            r#"[package]
 name = "{}"
 version = "0.1.0"
 edition = "2021"
@@ -245,16 +260,20 @@ edition = "2021"
 {}
 tokio = {{ version = "1", features = ["full"] }}
 anyhow = "1"
-"#, name.replace("-", "_"), deps);
-        
+"#,
+            name.replace("-", "_"),
+            deps
+        );
+
         fs::write(base_path.join("Cargo.toml"), cargo_toml)?;
         println!("  ├─ Created Cargo.toml");
         Ok(())
     }
-    
+
     fn generate_main_rs(&self, base_path: &Path, stack: &str) -> Result<()> {
         let main_rs = match stack {
-            "token2022" => r#"//! Token-2022 Confidential Transfer Project
+            "token2022" => {
+                r#"//! Token-2022 Confidential Transfer Project
 //! Generated by SolPrivacy CLI
 
 use anyhow::Result;
@@ -278,8 +297,10 @@ async fn main() -> Result<()> {
     
     Ok(())
 }
-"#,
-            "privacy-cash" => r#"//! Privacy Cash Integration Project
+"#
+            }
+            "privacy-cash" => {
+                r#"//! Privacy Cash Integration Project
 //! Generated by SolPrivacy CLI
 
 use anyhow::Result;
@@ -299,8 +320,10 @@ async fn main() -> Result<()> {
     
     Ok(())
 }
-"#,
-            "noir" => r#"//! Noir ZK Circuit Project
+"#
+            }
+            "noir" => {
+                r#"//! Noir ZK Circuit Project
 //! Generated by SolPrivacy CLI
 
 // This file is a placeholder. 
@@ -317,8 +340,10 @@ fn main() {
     println!("\nDeploy to Solana:");
     println!("  sunspot verifier-gen -o verifier/");
 }
-"#,
-            _ => r#"//! Privacy Application
+"#
+            }
+            _ => {
+                r#"//! Privacy Application
 //! Generated by SolPrivacy CLI
 
 use anyhow::Result;
@@ -333,14 +358,15 @@ async fn main() -> Result<()> {
     
     Ok(())
 }
-"#,
+"#
+            }
         };
-        
+
         fs::write(base_path.join("src/main.rs"), main_rs)?;
         println!("  ├─ Created src/main.rs");
         Ok(())
     }
-    
+
     fn generate_readme(&self, base_path: &Path, name: &str, stack: &str) -> Result<()> {
         let stack_name = match stack {
             "token2022" => "Token-2022 Confidential Transfer",
@@ -350,8 +376,9 @@ async fn main() -> Result<()> {
             "noir" => "Noir ZK Circuits",
             _ => "Privacy Application",
         };
-        
-        let readme = format!(r#"# {}
+
+        let readme = format!(
+            r#"# {}
 
 {} project generated by SolPrivacy CLI.
 
@@ -366,13 +393,15 @@ cargo run
 
 - [SolPrivacy CLI](https://github.com/user/solprivacy-cli)
 - [Solana Privacy Hackathon](https://solana.com/privacyhack)
-"#, name, stack_name);
-        
+"#,
+            name, stack_name
+        );
+
         fs::write(base_path.join("README.md"), readme)?;
         println!("  ├─ Created README.md");
         Ok(())
     }
-    
+
     fn generate_gitignore(&self, base_path: &Path) -> Result<()> {
         let gitignore = r#"/target
 /keys/*.json

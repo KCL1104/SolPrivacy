@@ -1,5 +1,5 @@
-use thiserror::Error;
 use solana_pubkey::ParsePubkeyError;
+use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, SolPrivacyError>;
 
@@ -7,10 +7,10 @@ pub type Result<T> = std::result::Result<T, SolPrivacyError>;
 pub enum SolPrivacyError {
     #[error("Configuration error: {0}")]
     Config(String),
-    
+
     #[error("Cryptography error: {0}")]
     Crypto(String),
-    
+
     #[error("RPC Client error: {0}")]
     Rpc(String),
 
@@ -26,16 +26,16 @@ pub enum SolPrivacyError {
 
     #[error("Command execution failed: {0}")]
     CommandFailed(String),
-    
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
-    
+
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
-    
+
     #[error("Input error: {0}")]
     Input(String),
 

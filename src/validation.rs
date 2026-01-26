@@ -2,17 +2,19 @@
 //! These functions are available for use in command handlers.
 #![allow(dead_code)]
 
+use crate::error::{Result, SolPrivacyError};
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
-use crate::error::{Result, SolPrivacyError};
 
 /// Validate and parse a Solana public key from string
 pub fn validate_pubkey(input: &str) -> Result<Pubkey> {
     // Check for empty input
     if input.trim().is_empty() {
-        return Err(SolPrivacyError::Other("Public key cannot be empty".to_string()));
+        return Err(SolPrivacyError::Other(
+            "Public key cannot be empty".to_string(),
+        ));
     }
-    
+
     // Check length (base58 pubkeys are typically 32-44 characters)
     if input.len() < 32 || input.len() > 44 {
         return Err(SolPrivacyError::Other(format!(
@@ -20,7 +22,7 @@ pub fn validate_pubkey(input: &str) -> Result<Pubkey> {
             input.len()
         )));
     }
-    
+
     // Try to parse
     Pubkey::from_str(input)
         .map_err(|e| SolPrivacyError::Other(format!("Invalid public key '{}': {}", input, e)))
@@ -32,7 +34,7 @@ pub fn validate_amount(amount: u64, decimals: u8) -> Result<()> {
     if amount == 0 {
         return Err(SolPrivacyError::Other("Amount cannot be zero".to_string()));
     }
-    
+
     // Check for overflow with decimals
     let max_ui_amount = u64::MAX / 10u64.pow(decimals as u32);
     if amount > max_ui_amount {
@@ -41,14 +43,16 @@ pub fn validate_amount(amount: u64, decimals: u8) -> Result<()> {
             amount, max_ui_amount
         )));
     }
-    
+
     Ok(())
 }
 
 /// Validate SOL amount (in lamports)
 pub fn validate_sol_amount(lamports: u64) -> Result<()> {
     if lamports == 0 {
-        return Err(SolPrivacyError::Other("SOL amount cannot be zero".to_string()));
+        return Err(SolPrivacyError::Other(
+            "SOL amount cannot be zero".to_string(),
+        ));
     }
     Ok(())
 }
@@ -56,20 +60,22 @@ pub fn validate_sol_amount(lamports: u64) -> Result<()> {
 /// Convert UI amount to token amount with decimals
 pub fn ui_amount_to_amount(ui_amount: f64, decimals: u8) -> Result<u64> {
     if ui_amount <= 0.0 {
-        return Err(SolPrivacyError::Other("Amount must be positive".to_string()));
+        return Err(SolPrivacyError::Other(
+            "Amount must be positive".to_string(),
+        ));
     }
-    
+
     if ui_amount.is_nan() || ui_amount.is_infinite() {
         return Err(SolPrivacyError::Other("Invalid amount".to_string()));
     }
-    
+
     let multiplier = 10u64.pow(decimals as u32) as f64;
     let amount = (ui_amount * multiplier).round() as u64;
-    
+
     if amount == 0 {
         return Err(SolPrivacyError::Other("Amount too small".to_string()));
     }
-    
+
     Ok(amount)
 }
 

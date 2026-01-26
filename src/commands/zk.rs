@@ -1,9 +1,9 @@
+use crate::error::Result;
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use crate::error::Result;
 
 /// Zero-Knowledge proof operations using Noir circuits
 #[derive(Args)]
@@ -19,72 +19,72 @@ pub enum ZkAction {
         /// Circuit template to use
         #[arg(value_parser = ["ownership", "merkle", "signature", "range", "balance", "nullifier", "privacy-transfer"])]
         circuit: String,
-        
+
         /// Output directory
         #[arg(short, long, default_value = ".")]
         output: String,
     },
-    
+
     /// Compile a Noir circuit
     Compile {
         /// Path to Noir project
         #[arg(default_value = ".")]
         path: String,
-        
+
         /// Show detailed compilation output
         #[arg(long)]
         verbose: bool,
     },
-    
+
     /// Generate a ZK proof
     Prove {
         /// Path to Prover.toml inputs
         #[arg(short, long, default_value = "Prover.toml")]
         inputs: String,
-        
+
         /// Path to Noir project
         #[arg(default_value = ".")]
         path: String,
-        
+
         /// Output proof file name
         #[arg(short, long)]
         output: Option<String>,
     },
-    
+
     /// Verify a ZK proof
     Verify {
         /// Path to proof file
         #[arg(short, long)]
         proof: Option<String>,
-        
+
         /// Path to Noir project
         #[arg(default_value = ".")]
         path: String,
     },
-    
+
     /// Run circuit tests
     Test {
         /// Path to Noir project
         #[arg(default_value = ".")]
         path: String,
-        
+
         /// Show test output
         #[arg(long)]
         show_output: bool,
     },
-    
+
     /// Generate Solana verifier using Sunspot
     Solana {
         #[command(subcommand)]
         action: SolanaAction,
     },
-    
+
     /// Show available circuit templates
     Templates,
-    
+
     /// Show installation instructions for Noir
     Setup,
-    
+
     /// Show complete ZK development workflow
     Workflow,
 }
@@ -97,25 +97,25 @@ pub enum SolanaAction {
         #[arg(default_value = ".")]
         path: String,
     },
-    
+
     /// Generate proving and verifying keys
     Keygen {
         /// Path to Noir project
         #[arg(default_value = ".")]
         path: String,
     },
-    
+
     /// Generate Solana verifier program
     Verifier {
         /// Path to Noir project
         #[arg(default_value = ".")]
         path: String,
-        
+
         /// Output directory for verifier
         #[arg(short, long, default_value = "verifier")]
         output: String,
     },
-    
+
     /// Show Sunspot installation instructions
     Install,
 }
@@ -125,7 +125,11 @@ impl ZkCommand {
         match &self.action {
             ZkAction::Init { circuit, output } => self.init_circuit(circuit, output),
             ZkAction::Compile { path, verbose } => self.compile_circuit(path, *verbose),
-            ZkAction::Prove { inputs, path, output } => self.generate_proof(inputs, path, output.as_deref()),
+            ZkAction::Prove {
+                inputs,
+                path,
+                output,
+            } => self.generate_proof(inputs, path, output.as_deref()),
             ZkAction::Verify { proof, path } => self.verify_proof(proof.as_deref(), path),
             ZkAction::Test { path, show_output } => self.run_tests(path, *show_output),
             ZkAction::Solana { action } => self.solana_action(action),
@@ -134,7 +138,7 @@ impl ZkCommand {
             ZkAction::Workflow => self.show_workflow(),
         }
     }
-    
+
     fn solana_action(&self, action: &SolanaAction) -> Result<()> {
         match action {
             SolanaAction::Setup { path } => self.sunspot_setup(path),
@@ -143,7 +147,7 @@ impl ZkCommand {
             SolanaAction::Install => self.show_sunspot_install(),
         }
     }
-    
+
     fn is_nargo_installed(&self) -> Option<String> {
         Command::new("nargo")
             .arg("--version")
@@ -152,7 +156,7 @@ impl ZkCommand {
             .filter(|o| o.status.success())
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
     }
-    
+
     fn is_sunspot_installed(&self) -> bool {
         Command::new("sunspot")
             .arg("--version")
@@ -160,77 +164,105 @@ impl ZkCommand {
             .map(|o| o.status.success())
             .unwrap_or(false)
     }
-    
+
     fn show_templates(&self) -> Result<()> {
         println!("{} Available Circuit Templates", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         println!("  {}:", "Privacy Primitives".bright_white());
         println!();
-        
-        println!("    {} - Prove ownership of data without revealing it", "ownership".bright_cyan());
+
+        println!(
+            "    {} - Prove ownership of data without revealing it",
+            "ownership".bright_cyan()
+        );
         println!("      Use case: Private authentication, credential verification");
         println!();
-        
-        println!("    {} - Sparse Merkle tree membership/exclusion proof", "merkle".bright_cyan());
+
+        println!(
+            "    {} - Sparse Merkle tree membership/exclusion proof",
+            "merkle".bright_cyan()
+        );
         println!("      Use case: Blacklist exclusion, whitelist membership");
         println!();
-        
-        println!("    {} - ECDSA signature verification in ZK", "signature".bright_cyan());
+
+        println!(
+            "    {} - ECDSA signature verification in ZK",
+            "signature".bright_cyan()
+        );
         println!("      Use case: Private signing, anonymous credentials");
         println!();
-        
-        println!("    {} - Prove value is within a range [0, 2^N)", "range".bright_cyan());
+
+        println!(
+            "    {} - Prove value is within a range [0, 2^N)",
+            "range".bright_cyan()
+        );
         println!("      Use case: Age verification, balance checks, compliance");
         println!();
-        
-        println!("    {} - Prove balance >= amount without revealing balance", "balance".bright_cyan());
+
+        println!(
+            "    {} - Prove balance >= amount without revealing balance",
+            "balance".bright_cyan()
+        );
         println!("      Use case: Private solvency proof, reserve verification");
         println!();
-        
-        println!("    {} - Compute nullifier for double-spend prevention", "nullifier".bright_cyan());
+
+        println!(
+            "    {} - Compute nullifier for double-spend prevention",
+            "nullifier".bright_cyan()
+        );
         println!("      Use case: Private voting, token mixing, anonymous transfers");
         println!();
-        
-        println!("    {} - Complete privacy-preserving transfer circuit", "privacy-transfer".bright_cyan());
+
+        println!(
+            "    {} - Complete privacy-preserving transfer circuit",
+            "privacy-transfer".bright_cyan()
+        );
         println!("      Use case: Confidential token transfers with amount hiding");
         println!();
-        
+
         println!("  {}:", "Usage".bright_white());
         println!("    solprivacy zk init <template> --output <dir>");
         println!();
         println!("  {}:", "Example".bright_white());
         println!("    solprivacy zk init range --output my-range-proof");
-        
+
         Ok(())
     }
-    
+
     fn init_circuit(&self, circuit: &str, output: &str) -> Result<()> {
         println!("{} Noir ZK Circuit Generator", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         let circuit_name = format!("{}-circuit", circuit);
         let base_path = Path::new(output).join(&circuit_name);
-        
+
         if base_path.exists() {
-            println!("{} Directory '{}' already exists!", "✗".bright_red(), circuit_name);
+            println!(
+                "{} Directory '{}' already exists!",
+                "✗".bright_red(),
+                circuit_name
+            );
             return Ok(());
         }
-        
+
         println!("  Creating Noir circuit: {}", circuit.bright_cyan());
-        println!("  Template: {}", self.get_template_description(circuit).bright_black());
+        println!(
+            "  Template: {}",
+            self.get_template_description(circuit).bright_black()
+        );
         println!();
-        
+
         // Create directories
         fs::create_dir_all(base_path.join("src"))?;
-        
+
         // Generate Nargo.toml with appropriate dependencies
         let nargo_toml = self.generate_nargo_toml(&circuit_name, circuit);
         fs::write(base_path.join("Nargo.toml"), nargo_toml)?;
         println!("  ├─ Created Nargo.toml");
-        
+
         // Generate circuit based on template
         let main_nr = match circuit {
             "ownership" => self.ownership_circuit(),
@@ -242,27 +274,31 @@ impl ZkCommand {
             "privacy-transfer" => self.privacy_transfer_circuit(),
             _ => self.ownership_circuit(),
         };
-        
+
         fs::write(base_path.join("src/main.nr"), main_nr)?;
         println!("  ├─ Created src/main.nr");
-        
+
         // Generate Prover.toml with example inputs
         let prover_toml = self.generate_prover_toml(circuit);
         fs::write(base_path.join("Prover.toml"), prover_toml)?;
         println!("  ├─ Created Prover.toml");
-        
+
         // Generate Verifier.toml for public inputs
         let verifier_toml = self.generate_verifier_toml(circuit);
         fs::write(base_path.join("Verifier.toml"), verifier_toml)?;
         println!("  ├─ Created Verifier.toml");
-        
+
         // Generate README
         let readme = self.generate_readme(&circuit_name, circuit);
         fs::write(base_path.join("README.md"), readme)?;
         println!("  └─ Created README.md");
-        
+
         println!();
-        println!("{} Circuit created at: {}", "✓".bright_green(), base_path.display());
+        println!(
+            "{} Circuit created at: {}",
+            "✓".bright_green(),
+            base_path.display()
+        );
         println!();
         println!("  {}:", "Next Steps".bright_white());
         println!("    1. cd {}", circuit_name);
@@ -276,10 +312,10 @@ impl ZkCommand {
         println!("    solprivacy zk solana setup");
         println!("    solprivacy zk solana keygen");
         println!("    solprivacy zk solana verifier");
-        
+
         Ok(())
     }
-    
+
     fn get_template_description(&self, circuit: &str) -> &'static str {
         match circuit {
             "ownership" => "Prove ownership without revealing data",
@@ -292,26 +328,34 @@ impl ZkCommand {
             _ => "Custom ZK circuit",
         }
     }
-    
+
     fn generate_nargo_toml(&self, name: &str, circuit: &str) -> String {
         let deps = match circuit {
-            "merkle" | "nullifier" | "privacy-transfer" | "balance" => r#"
+            "merkle" | "nullifier" | "privacy-transfer" | "balance" => {
+                r#"
 [dependencies]
-"#,
-            _ => r#"
+"#
+            }
+            _ => {
+                r#"
 [dependencies]
-"#,
+"#
+            }
         };
-        
-        format!(r#"[package]
+
+        format!(
+            r#"[package]
 name = "{}"
 type = "bin"
 authors = ["SolPrivacy CLI"]
 compiler_version = ">=1.0.0-beta.0"
 {}
-"#, name.replace("-", "_"), deps)
+"#,
+            name.replace("-", "_"),
+            deps
+        )
     }
-    
+
     fn generate_prover_toml(&self, circuit: &str) -> String {
         match circuit {
             "ownership" => r#"# Ownership Proof - Private Inputs
@@ -388,29 +432,33 @@ recipient_blinding = "0x22222222222222222222222222222222222222222222222222222222
             _ => "# Private inputs\n".to_string(),
         }
     }
-    
+
     fn generate_verifier_toml(&self, circuit: &str) -> String {
         match circuit {
             "merkle" => r#"# Public Inputs for Verifier
 # The Merkle root that the proof verifies membership against
 
 root = "0x..."
-"#.to_string(),
+"#
+            .to_string(),
             "range" => r#"# Public Inputs for Verifier
 # The number of bits for range check (public)
 
 bits = "64"
-"#.to_string(),
+"#
+            .to_string(),
             "balance" => r#"# Public Inputs for Verifier
 # The commitment to the balance (public)
 
 commitment = "0x..."
-"#.to_string(),
+"#
+            .to_string(),
             "nullifier" => r#"# Public Inputs for Verifier
 # The computed nullifier (public, used for double-spend check)
 
 nullifier = "0x..."
-"#.to_string(),
+"#
+            .to_string(),
             "privacy-transfer" => r#"# Public Inputs for Verifier
 # These are revealed to verify the transfer
 
@@ -418,15 +466,17 @@ merkle_root = "0x..."
 sender_nullifier = "0x..."
 new_sender_commitment = "0x..."
 recipient_commitment = "0x..."
-"#.to_string(),
+"#
+            .to_string(),
             _ => "# Public inputs\n".to_string(),
         }
     }
-    
+
     fn generate_readme(&self, name: &str, circuit: &str) -> String {
         let description = self.get_template_description(circuit);
-        
-        format!(r#"# {} Circuit
+
+        format!(
+            r#"# {} Circuit
 
 {}
 
@@ -503,9 +553,11 @@ solprivacy zk solana verifier   # Generate verifier program
 ## License
 
 MIT
-"#, name, description, circuit, description)
+"#,
+            name, description, circuit, description
+        )
     }
-    
+
     fn ownership_circuit(&self) -> String {
         r#"// Ownership Proof Circuit
 // Proves knowledge of a secret value and blinding factor
@@ -543,9 +595,10 @@ fn test_different_secrets_different_commitments() {
     
     assert(commitment1 != commitment2);
 }
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn merkle_circuit(&self) -> String {
         r#"// Sparse Merkle Tree Membership Proof
 // Proves that a leaf exists at a specific index in a Merkle tree
@@ -608,9 +661,10 @@ fn test_merkle_membership() {
     
     main(leaf, index, hash_path, expected);
 }
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn signature_circuit(&self) -> String {
         r#"// ECDSA Secp256k1 Signature Verification
 // Verifies a signature without revealing the private key.
@@ -638,9 +692,10 @@ fn main(
 
 // Note: Testing signature verification requires valid ECDSA signatures
 // which need external tooling to generate.
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn range_circuit(&self) -> String {
         r#"// Range Proof Circuit
 // Proves that a private value lies within [0, 2^bits)
@@ -691,9 +746,10 @@ fn test_range_boundary() {
     // 255 is max for 8 bits
     main(255, 8);
 }
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn balance_circuit(&self) -> String {
         r#"// Balance Proof Circuit
 // Proves that balance >= amount without revealing the exact balance.
@@ -736,9 +792,10 @@ fn test_exact_balance() {
     
     main(balance, amount, blinding, commitment);
 }
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn nullifier_circuit(&self) -> String {
         r#"// Nullifier Circuit
 // Computes a unique nullifier from a secret and leaf index.
@@ -782,9 +839,10 @@ fn test_different_indices_different_nullifiers() {
     // Same secret, different index = different nullifier
     assert(nullifier1 != nullifier2);
 }
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn privacy_transfer_circuit(&self) -> String {
         r#"// Privacy-Preserving Transfer Circuit
 // Proves a valid token transfer without revealing:
@@ -931,14 +989,15 @@ fn test_privacy_transfer() {
         recipient_commitment
     );
 }
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn compile_circuit(&self, path: &str, verbose: bool) -> Result<()> {
         println!("{} Compiling Noir Circuit", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         // Check if nargo is installed
         match self.is_nargo_installed() {
             Some(version) => {
@@ -951,18 +1010,18 @@ fn test_privacy_transfer() {
                 return Ok(());
             }
         }
-        
+
         println!("  Path: {}", path);
         println!();
-        
+
         // First run nargo check
         println!("{} Running 'nargo check'...", "→".bright_cyan());
-        
+
         let check_result = Command::new("nargo")
             .arg("check")
             .current_dir(path)
             .output();
-        
+
         match check_result {
             Ok(output) => {
                 if !output.status.success() {
@@ -979,35 +1038,35 @@ fn test_privacy_transfer() {
                 return Ok(());
             }
         }
-        
+
         println!("{} Circuit syntax valid", "✓".bright_green());
         println!();
-        
+
         // Run nargo compile
         println!("{} Running 'nargo compile'...", "→".bright_cyan());
-        
+
         let mut cmd = Command::new("nargo");
         cmd.arg("compile").current_dir(path);
-        
+
         if verbose {
             cmd.arg("--show-output");
         }
-        
+
         let result = cmd.output();
-        
+
         match result {
             Ok(output) => {
                 if output.status.success() {
                     println!("{} Compilation successful!", "✓".bright_green());
                     println!();
-                    
+
                     if verbose {
                         let stdout = String::from_utf8_lossy(&output.stdout);
                         if !stdout.is_empty() {
                             println!("{}", stdout);
                         }
                     }
-                    
+
                     println!("  Output: target/<circuit_name>.json");
                     println!();
                     println!("  {}:", "Next Steps".bright_white());
@@ -1025,22 +1084,22 @@ fn test_privacy_transfer() {
                 println!("{} Failed to run nargo: {}", "✗".bright_red(), e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn generate_proof(&self, inputs: &str, path: &str, output: Option<&str>) -> Result<()> {
         println!("{} Generating ZK Proof", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         println!("  Inputs: {}", inputs);
         println!("  Path: {}", path);
         if let Some(out) = output {
             println!("  Output: {}", out);
         }
         println!();
-        
+
         // Check for Prover.toml
         let prover_path = Path::new(path).join(inputs);
         if !prover_path.exists() {
@@ -1048,7 +1107,7 @@ fn test_privacy_transfer() {
             println!("  Create a Prover.toml with your private inputs");
             return Ok(());
         }
-        
+
         // Check if circuit is compiled
         let target_dir = Path::new(path).join("target");
         if !target_dir.exists() {
@@ -1056,18 +1115,18 @@ fn test_privacy_transfer() {
             println!("  Run: solprivacy zk compile");
             return Ok(());
         }
-        
+
         println!("{} Running 'nargo prove'...", "→".bright_cyan());
-        
+
         let mut cmd = Command::new("nargo");
         cmd.arg("prove").current_dir(path);
-        
+
         if let Some(out) = output {
             cmd.arg("-o").arg(out);
         }
-        
+
         let result = cmd.output();
-        
+
         match result {
             Ok(output_result) => {
                 if output_result.status.success() {
@@ -1091,22 +1150,22 @@ fn test_privacy_transfer() {
                 self.show_setup()?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn verify_proof(&self, _proof: Option<&str>, path: &str) -> Result<()> {
         println!("{} Verifying ZK Proof", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         println!("{} Running 'nargo verify'...", "→".bright_cyan());
-        
+
         let result = Command::new("nargo")
             .arg("verify")
             .current_dir(path)
             .output();
-        
+
         match result {
             Ok(output) => {
                 if output.status.success() {
@@ -1137,29 +1196,29 @@ fn test_privacy_transfer() {
                 self.show_setup()?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn run_tests(&self, path: &str, show_output: bool) -> Result<()> {
         println!("{} Running Circuit Tests", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         let mut cmd = Command::new("nargo");
         cmd.arg("test").current_dir(path);
-        
+
         if show_output {
             cmd.arg("--show-output");
         }
-        
+
         let result = cmd.output();
-        
+
         match result {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                
+
                 if output.status.success() {
                     println!("{} All tests passed!", "✓".bright_green());
                     println!();
@@ -1182,31 +1241,34 @@ fn test_privacy_transfer() {
                 self.show_setup()?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn sunspot_setup(&self, path: &str) -> Result<()> {
-        println!("{} Sunspot Setup - Compile to Constraint System", "→".bright_cyan());
+        println!(
+            "{} Sunspot Setup - Compile to Constraint System",
+            "→".bright_cyan()
+        );
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         if !self.is_sunspot_installed() {
             println!("{} Sunspot not installed!", "✗".bright_red());
             println!();
             self.show_sunspot_install()?;
             return Ok(());
         }
-        
+
         println!("  Path: {}", path);
         println!();
         println!("{} Running 'sunspot setup'...", "→".bright_cyan());
-        
+
         let result = Command::new("sunspot")
             .arg("setup")
             .current_dir(path)
             .output();
-        
+
         match result {
             Ok(output) => {
                 if output.status.success() {
@@ -1228,33 +1290,36 @@ fn test_privacy_transfer() {
                 println!("{} Failed to run sunspot: {}", "✗".bright_red(), e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn sunspot_keygen(&self, path: &str) -> Result<()> {
-        println!("{} Sunspot Keygen - Generate Proving/Verifying Keys", "→".bright_cyan());
+        println!(
+            "{} Sunspot Keygen - Generate Proving/Verifying Keys",
+            "→".bright_cyan()
+        );
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         if !self.is_sunspot_installed() {
             println!("{} Sunspot not installed!", "✗".bright_red());
             println!();
             self.show_sunspot_install()?;
             return Ok(());
         }
-        
+
         println!("  Path: {}", path);
         println!();
         println!("{} Running 'sunspot keygen'...", "→".bright_cyan());
         println!("  This may take a few minutes...");
         println!();
-        
+
         let result = Command::new("sunspot")
             .arg("keygen")
             .current_dir(path)
             .output();
-        
+
         match result {
             Ok(output) => {
                 if output.status.success() {
@@ -1278,32 +1343,35 @@ fn test_privacy_transfer() {
                 println!("{} Failed to run sunspot: {}", "✗".bright_red(), e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn sunspot_verifier(&self, path: &str, output: &str) -> Result<()> {
-        println!("{} Sunspot Verifier - Generate Solana Program", "→".bright_cyan());
+        println!(
+            "{} Sunspot Verifier - Generate Solana Program",
+            "→".bright_cyan()
+        );
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         if !self.is_sunspot_installed() {
             println!("{} Sunspot not installed!", "✗".bright_red());
             println!();
             self.show_sunspot_install()?;
             return Ok(());
         }
-        
+
         println!("  Path: {}", path);
         println!("  Output: {}", output);
         println!();
         println!("{} Running 'sunspot verifier-gen'...", "→".bright_cyan());
-        
+
         let result = Command::new("sunspot")
             .args(["verifier-gen", "-o", output])
             .current_dir(path)
             .output();
-        
+
         match result {
             Ok(cmd_output) => {
                 if cmd_output.status.success() {
@@ -1330,46 +1398,46 @@ fn test_privacy_transfer() {
                 println!("{} Failed to run sunspot: {}", "✗".bright_red(), e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn show_sunspot_install(&self) -> Result<()> {
         println!("{} Sunspot Installation", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         println!("  {}:", "Prerequisites".bright_white());
         println!("    • Go 1.24+ (https://go.dev/dl/)");
         println!("    • Git");
         println!();
-        
+
         println!("  {}:", "Installation".bright_white());
         println!("    git clone https://github.com/reilabs/sunspot.git");
         println!("    cd sunspot/go");
         println!("    go build -o sunspot .");
         println!("    export PATH=\"$PWD:$PATH\"");
         println!();
-        
+
         println!("  {}:", "Verify Installation".bright_white());
         println!("    sunspot --version");
         println!();
-        
+
         println!("  {}:", "What is Sunspot?".bright_yellow());
         println!("    Sunspot compiles Noir circuits to Solana-compatible");
         println!("    Groth16 verifier programs. It handles:");
         println!("    • ACIR → Constraint System conversion");
         println!("    • Trusted setup (proving/verifying keys)");
         println!("    • Solana BPF program generation");
-        
+
         Ok(())
     }
-    
+
     fn show_workflow(&self) -> Result<()> {
         println!("{} ZK Development Complete Workflow", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         println!("  {}:", "Phase 1: Circuit Development".bright_white());
         println!();
         println!("    # Create circuit from template");
@@ -1380,7 +1448,7 @@ fn test_privacy_transfer() {
         println!("    nargo check          # Verify syntax");
         println!("    nargo test           # Run tests");
         println!();
-        
+
         println!("  {}:", "Phase 2: Proof Generation".bright_white());
         println!();
         println!("    # Edit private inputs");
@@ -1395,7 +1463,7 @@ fn test_privacy_transfer() {
         println!("    # Verify locally");
         println!("    solprivacy zk verify");
         println!();
-        
+
         println!("  {}:", "Phase 3: Solana Deployment".bright_white());
         println!();
         println!("    # Setup for Sunspot");
@@ -1410,7 +1478,7 @@ fn test_privacy_transfer() {
         println!("    # Deploy to Solana");
         println!("    solana program deploy verifier/verifier.so");
         println!();
-        
+
         println!("  {}:", "Phase 4: Integration".bright_white());
         println!();
         println!("    # Your application:");
@@ -1419,23 +1487,23 @@ fn test_privacy_transfer() {
         println!("    3. Verifier returns success/failure");
         println!("    4. Use result for access control, transfers, etc.");
         println!();
-        
+
         println!("  {}:", "Available Templates".bright_yellow());
         println!("    solprivacy zk templates    # List all templates");
         println!();
-        
+
         println!("  {}:", "Hackathon Track".bright_green());
         println!("    Noir ZK Applications: $10,000 prize");
         println!("    https://privacyhack.io");
-        
+
         Ok(())
     }
-    
+
     fn show_setup(&self) -> Result<()> {
         println!("{} Noir ZK Development Setup", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         println!();
-        
+
         // Check current status
         println!("  {}:", "Current Status".bright_white());
         match self.is_nargo_installed() {
@@ -1446,44 +1514,49 @@ fn test_privacy_transfer() {
                 println!("    {} Nargo: Not installed", "✗".bright_red());
             }
         }
-        
+
         if self.is_sunspot_installed() {
             println!("    {} Sunspot: Installed", "✓".bright_green());
         } else {
             println!("    {} Sunspot: Not installed", "○".bright_black());
         }
         println!();
-        
+
         println!("  {}:", "Step 1: Install Noir (Nargo)".bright_white());
-        println!("    curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash");
+        println!(
+            "    curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash"
+        );
         println!("    noirup -v 1.0.0-beta.13");
         println!();
-        
+
         println!("  {}:", "Step 2: Verify Installation".bright_white());
         println!("    nargo --version");
         println!();
-        
-        println!("  {}:", "Step 3 (Optional): Install Sunspot for Solana".bright_white());
+
+        println!(
+            "  {}:",
+            "Step 3 (Optional): Install Sunspot for Solana".bright_white()
+        );
         println!("    # Requires Go 1.24+");
         println!("    git clone https://github.com/reilabs/sunspot.git");
         println!("    cd sunspot/go && go build -o sunspot .");
         println!("    export PATH=\"$HOME/sunspot/go:$PATH\"");
         println!();
-        
+
         println!("  {}:", "Quick Start".bright_white());
         println!("    solprivacy zk init ownership --output my-circuit");
         println!("    cd my-circuit && nargo check && nargo test");
         println!();
-        
+
         println!("  {}:", "Resources".bright_white());
         println!("    Noir Docs: https://noir-lang.org/docs");
         println!("    Solana Examples: https://github.com/solana-foundation/noir-examples");
         println!("    Sunspot: https://github.com/reilabs/sunspot");
         println!();
-        
+
         println!("  {}:", "Hackathon Track".bright_green());
         println!("    Noir ZK Applications: $10,000 prize");
-        
+
         Ok(())
     }
 }

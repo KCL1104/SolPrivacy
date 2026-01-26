@@ -1,6 +1,6 @@
+use crate::error::Result;
 use clap::{Args, Subcommand};
 use colored::Colorize;
-use crate::error::Result;
 
 /// Quick access to privacy development documentation
 #[derive(Args)]
@@ -13,25 +13,25 @@ pub struct DocsCommand {
 pub enum DocsTopic {
     /// Token-2022 Confidential Transfers documentation
     Token2022,
-    
+
     /// Light Protocol ZK Compression documentation
     Light,
-    
+
     /// Arcium MXE documentation
     Arcium,
-    
+
     /// Noir ZK circuit documentation
     Noir,
-    
+
     /// Privacy Cash SDK documentation
     PrivacyCash,
-    
+
     /// Helius RPC documentation
     Helius,
-    
+
     /// QuickNode documentation
     Quicknode,
-    
+
     /// Solana Privacy Hackathon resources
     Hackathon,
 }
@@ -49,12 +49,12 @@ impl DocsCommand {
             None => self.show_all(),
         }
     }
-    
+
     fn show_all(&self) -> Result<()> {
         println!("{} Privacy Development Documentation", "→".bright_cyan());
         println!("{}", "─".repeat(55).bright_black());
         println!();
-        
+
         let topics = vec![
             DocLink {
                 name: "token2022",
@@ -97,17 +97,17 @@ impl DocsCommand {
                 description: "Solana Privacy Hackathon 2025",
             },
         ];
-        
+
         println!("  {}:", "Available Topics".bright_white());
         println!();
-        
+
         for doc in &topics {
             println!("  {} {}", "•".bright_cyan(), doc.name.bright_white());
             println!("    {}", doc.description.bright_black());
             println!("    {}", doc.url.bright_blue());
             println!();
         }
-        
+
         println!("  {}:", "Usage".bright_white());
         println!("    solprivacy docs <topic>     Open documentation in browser");
         println!();
@@ -115,10 +115,10 @@ impl DocsCommand {
         println!("    solprivacy docs token2022");
         println!("    solprivacy docs light");
         println!("    solprivacy docs hackathon");
-        
+
         Ok(())
     }
-    
+
     fn open_topic(&self, topic: &DocsTopic) -> Result<()> {
         let (name, url, description) = match topic {
             DocsTopic::Token2022 => (
@@ -162,7 +162,7 @@ impl DocsCommand {
                 "Build privacy applications on Solana",
             ),
         };
-        
+
         println!("{} {}", "→".bright_cyan(), name.bright_white());
         println!("{}", "─".repeat(50).bright_black());
         println!();
@@ -170,26 +170,28 @@ impl DocsCommand {
         println!();
         println!("  URL: {}", url.bright_blue());
         println!();
-        
+
         // Try to open in browser
         #[cfg(target_os = "macos")]
         {
             let _ = std::process::Command::new("open").arg(url).spawn();
             println!("{} Opening in browser...", "✓".bright_green());
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             let _ = std::process::Command::new("xdg-open").arg(url).spawn();
             println!("{} Opening in browser...", "✓".bright_green());
         }
-        
+
         #[cfg(target_os = "windows")]
         {
-            let _ = std::process::Command::new("cmd").args(["/C", "start", url]).spawn();
+            let _ = std::process::Command::new("cmd")
+                .args(["/C", "start", url])
+                .spawn();
             println!("{} Opening in browser...", "✓".bright_green());
         }
-        
+
         Ok(())
     }
 }

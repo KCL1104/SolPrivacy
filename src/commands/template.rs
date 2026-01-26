@@ -1,8 +1,8 @@
+use crate::error::Result;
 use clap::Args;
 use colored::Colorize;
 use std::fs;
 use std::path::Path;
-use crate::error::Result;
 
 /// Generate project templates
 #[derive(Args)]
@@ -10,7 +10,7 @@ pub struct TemplateCommand {
     /// Template name
     #[arg(value_parser = ["token2022", "privacy-cash", "arcium", "light"])]
     pub name: String,
-    
+
     /// Output directory
     #[arg(short, long, default_value = ".")]
     pub output: String,
@@ -28,19 +28,22 @@ impl TemplateCommand {
             _ => unreachable!(),
         }
     }
-    
+
     fn generate_token2022_template(&self) -> Result<()> {
         let project_name = "token2022-confidential";
         let base_path = Path::new(&self.output).join(project_name);
-        
-        println!("  {}:", "Token-2022 Confidential Transfer Template".bright_white());
+
+        println!(
+            "  {}:",
+            "Token-2022 Confidential Transfer Template".bright_white()
+        );
         println!("  ├─ Creating project structure...");
-        
+
         // Create directories
         fs::create_dir_all(base_path.join("scripts"))?;
         fs::create_dir_all(base_path.join("keys"))?;
         fs::create_dir_all(base_path.join("src"))?;
-        
+
         // Generate Cargo.toml
         let cargo_toml = r#"[package]
 name = "token2022-confidential"
@@ -57,7 +60,7 @@ anyhow = "1.0"
 "#;
         fs::write(base_path.join("Cargo.toml"), cargo_toml)?;
         println!("  ├─ Created Cargo.toml");
-        
+
         // Generate main.rs
         let main_rs = r#"//! Token-2022 Confidential Transfer Example
 //! 
@@ -134,7 +137,7 @@ async fn main() -> Result<()> {
 "#;
         fs::write(base_path.join("src/main.rs"), main_rs)?;
         println!("  ├─ Created src/main.rs");
-        
+
         // Generate README
         let readme = r#"# Token-2022 Confidential Transfer Project
 
@@ -164,35 +167,42 @@ cargo run
 "#;
         fs::write(base_path.join("README.md"), readme)?;
         println!("  ├─ Created README.md");
-        
+
         // Generate .gitignore
         let gitignore = "/target\n/keys/*.json\n";
         fs::write(base_path.join(".gitignore"), gitignore)?;
         println!("  └─ Created .gitignore");
-        
+
         println!();
-        println!("{} Template created at: {}", "✓".bright_green(), base_path.display());
+        println!(
+            "{} Template created at: {}",
+            "✓".bright_green(),
+            base_path.display()
+        );
         println!();
         println!("  {}:", "Next Steps".bright_white());
         println!("    1. cd {}", project_name);
         println!("    2. solprivacy keygen auditor -o keys/auditor.json");
         println!("    3. cargo build && cargo run");
-        
+
         Ok(())
     }
-    
+
     fn generate_arcium_template(&self) -> Result<()> {
         let project_name = "arcium-mxe-project";
         let base_path = Path::new(&self.output).join(project_name);
-        
-        println!("  {}:", "Arcium MXE (Multiparty Execution) Template".bright_white());
+
+        println!(
+            "  {}:",
+            "Arcium MXE (Multiparty Execution) Template".bright_white()
+        );
         println!("  ├─ Creating project structure...");
-        
+
         // Create standard Anchor-like structure
         fs::create_dir_all(base_path.join("programs").join("arcium-app").join("src"))?;
         fs::create_dir_all(base_path.join("tests"))?;
         fs::create_dir_all(base_path.join("app"))?;
-        
+
         // 1. Generate Anchor.toml
         let anchor_toml = r#"[features]
 seeds = false
@@ -252,7 +262,10 @@ default = []
 anchor-lang = "0.29.0"
 arcium-anchor = "0.1.0" # Hypothetical crate based on docs
 "#;
-        fs::write(base_path.join("programs/arcium-app/Cargo.toml"), program_cargo)?;
+        fs::write(
+            base_path.join("programs/arcium-app/Cargo.toml"),
+            program_cargo,
+        )?;
         println!("  ├─ Created programs/arcium-app/Cargo.toml");
 
         // 4. Generate lib.rs with MXE structure
@@ -329,7 +342,11 @@ arcium deploy
         println!("  └─ Created .gitignore");
 
         println!();
-        println!("{} Template created at: {}", "✓".bright_green(), base_path.display());
+        println!(
+            "{} Template created at: {}",
+            "✓".bright_green(),
+            base_path.display()
+        );
         println!();
         println!("  {}:", "Next Steps".bright_white());
         println!("    1. cd {}", project_name);
@@ -343,12 +360,15 @@ arcium deploy
     fn generate_noir_template(&self) -> Result<()> {
         let project_name = "noir-zk-circuit";
         let base_path = Path::new(&self.output).join(project_name);
-        
-        println!("  {}:", "Noir Zero-Knowledge Circuit Template".bright_white());
+
+        println!(
+            "  {}:",
+            "Noir Zero-Knowledge Circuit Template".bright_white()
+        );
         println!("  ├─ Creating project structure...");
-        
+
         fs::create_dir_all(base_path.join("src"))?;
-        
+
         // 1. Generate Nargo.toml
         let nargo_toml = r#"[package]
 name = "noir_zk_circuit"
@@ -423,7 +443,11 @@ nargo verify
         println!("  └─ Created .gitignore");
 
         println!();
-        println!("{} Template created at: {}", "✓".bright_green(), base_path.display());
+        println!(
+            "{} Template created at: {}",
+            "✓".bright_green(),
+            base_path.display()
+        );
         println!();
         println!("  {}:", "Next Steps".bright_white());
         println!("    1. cd {}", project_name);
@@ -432,19 +456,19 @@ nargo verify
 
         Ok(())
     }
-    
+
     fn generate_privacy_cash_template(&self) -> Result<()> {
         let project_name = "privacy-cash-project";
         let base_path = Path::new(&self.output).join(project_name);
-        
+
         println!("  {}:", "Privacy Cash Project Template".bright_white());
         println!("  ├─ Creating project structure...");
-        
+
         // Create directories
         fs::create_dir_all(base_path.join("src"))?;
         fs::create_dir_all(base_path.join("circuits"))?;
         fs::create_dir_all(base_path.join("scripts"))?;
-        
+
         // Generate Cargo.toml
         let cargo_toml = r#"[package]
 name = "privacy-cash-project"
@@ -460,7 +484,7 @@ anyhow = "1.0"
 "#;
         fs::write(base_path.join("Cargo.toml"), cargo_toml)?;
         println!("  ├─ Created Cargo.toml");
-        
+
         // Generate main.rs
         let main_rs = r#"//! Privacy Cash Example
 //! 
@@ -496,7 +520,7 @@ async fn main() -> Result<()> {
 "#;
         fs::write(base_path.join("src/main.rs"), main_rs)?;
         println!("  ├─ Created src/main.rs");
-        
+
         // Generate README
         let readme = r#"# Privacy Cash Project
 
@@ -520,27 +544,34 @@ cargo run
 "#;
         fs::write(base_path.join("README.md"), readme)?;
         println!("  ├─ Created README.md");
-        
+
         let gitignore = "/target\n/keys\n";
         fs::write(base_path.join(".gitignore"), gitignore)?;
         println!("  └─ Created .gitignore");
-        
+
         println!();
-        println!("{} Template created at: {}", "✓".bright_green(), base_path.display());
-        
+        println!(
+            "{} Template created at: {}",
+            "✓".bright_green(),
+            base_path.display()
+        );
+
         Ok(())
     }
     fn generate_light_template(&self) -> Result<()> {
         let project_name = "light-protocol-project";
         let base_path = Path::new(&self.output).join(project_name);
-        
-        println!("  {}:", "Light Protocol ZK Compression Template".bright_white());
+
+        println!(
+            "  {}:",
+            "Light Protocol ZK Compression Template".bright_white()
+        );
         println!("  ├─ Creating project structure...");
-        
+
         // Create directories
         fs::create_dir_all(base_path.join("src"))?;
         fs::create_dir_all(base_path.join("scripts"))?;
-        
+
         // Generate Cargo.toml
         let cargo_toml = r#"[package]
 name = "light-protocol-project"
@@ -557,7 +588,7 @@ light-client = "0.18"
 "#;
         fs::write(base_path.join("Cargo.toml"), cargo_toml)?;
         println!("  ├─ Created Cargo.toml");
-        
+
         // Generate main.rs
         let main_rs = r#"//! Light Protocol ZK Compression Example
 //! 
@@ -616,7 +647,7 @@ async fn main() -> Result<()> {
 "#;
         fs::write(base_path.join("src/main.rs"), main_rs)?;
         println!("  ├─ Created src/main.rs");
-        
+
         // Generate README
         let readme = r#"# Light Protocol ZK Compression Project
 
@@ -653,19 +684,23 @@ cargo run
 "#;
         fs::write(base_path.join("README.md"), readme)?;
         println!("  ├─ Created README.md");
-        
+
         let gitignore = "/target\n";
         fs::write(base_path.join(".gitignore"), gitignore)?;
         println!("  └─ Created .gitignore");
-        
+
         println!();
-        println!("{} Template created at: {}", "✓".bright_green(), base_path.display());
+        println!(
+            "{} Template created at: {}",
+            "✓".bright_green(),
+            base_path.display()
+        );
         println!();
         println!("  {}:", "Next Steps".bright_white());
         println!("    1. cd {}", project_name);
         println!("    2. Edit src/main.rs to add your Helius API Key");
         println!("    3. cargo run");
-        
+
         Ok(())
     }
 }

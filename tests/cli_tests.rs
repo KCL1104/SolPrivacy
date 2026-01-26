@@ -176,10 +176,10 @@ fn wallet_list_runs_successfully() {
 #[test]
 fn wallet_address_nonexistent_shows_error() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
-    cmd.arg("wallet").arg("address").arg("nonexistent_wallet_12345");
-    cmd.assert()
-        .success()
-        .stdout(contains("not found"));
+    cmd.arg("wallet")
+        .arg("address")
+        .arg("nonexistent_wallet_12345");
+    cmd.assert().success().stdout(contains("not found"));
 }
 
 #[test]
@@ -220,9 +220,7 @@ fn setup_help_shows_options() {
 fn setup_check_specific_tool() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("setup").arg("--check").arg("rust");
-    cmd.assert()
-        .success()
-        .stdout(contains("Rust"));
+    cmd.assert().success().stdout(contains("Rust"));
 }
 
 #[test]
@@ -325,9 +323,7 @@ fn light_setup_shows_installation_info() {
 fn light_create_mint_help_shows_options() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("light").arg("create-mint").arg("--help");
-    cmd.assert()
-        .success()
-        .stdout(contains("--decimals"));
+    cmd.assert().success().stdout(contains("--decimals"));
 }
 
 #[test]
@@ -355,15 +351,18 @@ fn light_balance_help_shows_options() {
 fn light_health_help_shows_options() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("light").arg("health").arg("--help");
-    cmd.assert()
-        .success()
-        .stdout(contains("--rpc-url"));
+    cmd.assert().success().stdout(contains("--rpc-url"));
 }
 
 #[test]
 fn light_compare_shows_cost_analysis() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
-    cmd.arg("light").arg("compare").arg("--count").arg("100").arg("--size").arg("100");
+    cmd.arg("light")
+        .arg("compare")
+        .arg("--count")
+        .arg("100")
+        .arg("--size")
+        .arg("100");
     cmd.assert()
         .success()
         .stdout(contains("Cost Comparison"))
@@ -489,7 +488,9 @@ fn examples_list_shows_available_examples() {
 #[test]
 fn examples_clone_unknown_shows_error() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
-    cmd.arg("examples").arg("clone").arg("nonexistent_example_12345");
+    cmd.arg("examples")
+        .arg("clone")
+        .arg("nonexistent_example_12345");
     cmd.assert()
         .success()
         .stdout(contains("Unknown example"))
@@ -631,9 +632,7 @@ fn main_help_shows_all_commands() {
 fn main_version_shows_version() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("--version");
-    cmd.assert()
-        .success()
-        .stdout(contains("solprivacy"));
+    cmd.assert().success().stdout(contains("solprivacy"));
 }
 
 // ============================================================================
@@ -744,18 +743,14 @@ fn compliance_help_shows_subcommands() {
 fn compliance_info_shows_range_protocol() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("compliance").arg("info");
-    cmd.assert()
-        .success()
-        .stdout(contains("Range Protocol"));
+    cmd.assert().success().stdout(contains("Range Protocol"));
 }
 
 #[test]
 fn compliance_integrate_shows_guide() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("compliance").arg("integrate");
-    cmd.assert()
-        .success()
-        .stdout(contains("Integration"));
+    cmd.assert().success().stdout(contains("Integration"));
 }
 
 #[test]
@@ -772,18 +767,14 @@ fn compliance_check_help_shows_options() {
 fn compliance_batch_help_shows_options() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("compliance").arg("batch").arg("--help");
-    cmd.assert()
-        .success()
-        .stdout(contains("addresses"));
+    cmd.assert().success().stdout(contains("addresses"));
 }
 
 #[test]
 fn compliance_transaction_help_shows_options() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("compliance").arg("transaction").arg("--help");
-    cmd.assert()
-        .success()
-        .stdout(contains("signature"));
+    cmd.assert().success().stdout(contains("signature"));
 }
 
 // ============================================================================
@@ -851,18 +842,14 @@ fn helius_webhooks_help_shows_actions() {
 fn helius_webhooks_guide_shows_documentation() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("helius").arg("webhooks").arg("guide");
-    cmd.assert()
-        .success()
-        .stdout(contains("Webhook"));
+    cmd.assert().success().stdout(contains("Webhook"));
 }
 
 #[test]
 fn helius_send_help_shows_options() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("helius").arg("send").arg("--help");
-    cmd.assert()
-        .success()
-        .stdout(contains("transaction"));
+    cmd.assert().success().stdout(contains("transaction"));
 }
 
 #[test]
@@ -918,9 +905,7 @@ fn doctor_toolchain_shows_tools() {
 fn doctor_config_shows_configuration() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("doctor").arg("config");
-    cmd.assert()
-        .success()
-        .stdout(contains("Configuration"));
+    cmd.assert().success().stdout(contains("Configuration"));
 }
 
 #[test]
@@ -938,10 +923,11 @@ fn doctor_troubleshoot_shows_guide() {
 #[test]
 fn doctor_troubleshoot_rpc_shows_help() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
-    cmd.arg("doctor").arg("troubleshoot").arg("--issue").arg("rpc");
-    cmd.assert()
-        .success()
-        .stdout(contains("RPC"));
+    cmd.arg("doctor")
+        .arg("troubleshoot")
+        .arg("--issue")
+        .arg("rpc");
+    cmd.assert().success().stdout(contains("RPC"));
 }
 
 #[test]

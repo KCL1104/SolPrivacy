@@ -1,8 +1,8 @@
+use crate::config::AppConfig;
+use crate::error::Result;
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use solana_client::rpc_client::RpcClient;
-use crate::config::AppConfig;
-use crate::error::Result;
 
 /// Configure RPC providers and environment
 #[derive(Args)]
@@ -19,7 +19,7 @@ pub enum ConfigAction {
         #[arg(long, env = "HELIUS_API_KEY")]
         api_key: String,
     },
-    
+
     /// Configure QuickNode RPC
     Quicknode {
         /// QuickNode endpoint URL
@@ -33,17 +33,17 @@ pub enum ConfigAction {
         #[arg(long)]
         url: String,
     },
-    
+
     /// Set network (devnet/mainnet)
     Network {
         /// Network to use
         #[arg(value_parser = ["devnet", "mainnet", "localnet"])]
         network: String,
     },
-    
+
     /// Show current configuration
     Show,
-    
+
     /// Show the active RPC URL
     Rpc,
 
@@ -60,12 +60,12 @@ impl ConfigCommand {
         match &self.action {
             ConfigAction::Helius { api_key } => {
                 println!("{} Configuring Helius RPC...", "→".bright_cyan());
-                
+
                 let mut config = AppConfig::load()?;
                 config.rpc.helius_api_key = Some(api_key.clone());
                 config.rpc.active_provider = "helius".to_string();
                 config.save()?;
-                
+
                 println!("{} Helius configuration saved!", "✓".bright_green());
                 println!("  API Key: {}...", &api_key[..8.min(api_key.len())]);
                 println!("  Provider set to: {}", "helius".bright_white());
@@ -74,12 +74,12 @@ impl ConfigCommand {
             }
             ConfigAction::Quicknode { endpoint } => {
                 println!("{} Configuring QuickNode RPC...", "→".bright_cyan());
-                
+
                 let mut config = AppConfig::load()?;
                 config.rpc.quicknode_endpoint = Some(endpoint.clone());
                 config.rpc.active_provider = "quicknode".to_string();
                 config.save()?;
-                
+
                 println!("{} QuickNode configuration saved!", "✓".bright_green());
                 println!("  Endpoint: {}", endpoint);
                 println!("  Provider set to: {}", "quicknode".bright_white());
@@ -98,17 +98,21 @@ impl ConfigCommand {
             }
             ConfigAction::Network { network } => {
                 println!("{} Setting network...", "→".bright_cyan());
-                
+
                 let mut config = AppConfig::load()?;
                 config.network = network.clone();
                 config.save()?;
-                
-                println!("{} Network set to: {}", "✓".bright_green(), network.bright_white());
+
+                println!(
+                    "{} Network set to: {}",
+                    "✓".bright_green(),
+                    network.bright_white()
+                );
                 println!("  RPC URL: {}", config.get_rpc_url().bright_blue());
             }
             ConfigAction::Show => {
                 let config = AppConfig::load()?;
-                
+
                 println!("{} Current Configuration:", "ℹ".bright_blue());
                 println!();
                 println!("  {}:", "Network".bright_white());
@@ -116,7 +120,7 @@ impl ConfigCommand {
                 println!();
                 println!("  {}:", "RPC Provider".bright_white());
                 println!("    Active: {}", config.rpc.active_provider.bright_cyan());
-                
+
                 if let Some(ref key) = config.rpc.helius_api_key {
                     println!("    Helius API Key: {}...", &key[..8.min(key.len())]);
                 }
@@ -126,7 +130,7 @@ impl ConfigCommand {
                 if let Some(ref url) = config.rpc.custom_rpc_url {
                     println!("    Custom RPC URL: {}", url);
                 }
-                
+
                 println!();
                 println!("  {}:", "Active RPC URL".bright_white());
                 println!("    {}", config.get_rpc_url().bright_blue());
@@ -164,7 +168,7 @@ impl ConfigCommand {
                 }
             }
         }
-        
+
         Ok(())
     }
 }

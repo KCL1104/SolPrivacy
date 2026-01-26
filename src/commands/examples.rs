@@ -1,8 +1,8 @@
+use crate::error::Result;
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use std::path::Path;
 use std::process::Command;
-use crate::error::Result;
 
 /// Clone and manage example projects
 #[derive(Args)]
@@ -15,13 +15,13 @@ pub struct ExamplesCommand {
 pub enum ExamplesAction {
     /// List available example projects
     List,
-    
+
     /// Clone an example project
     Clone {
         /// Example name to clone
         #[arg()]
         name: String,
-        
+
         /// Output directory (defaults to example name)
         #[arg(short, long)]
         output: Option<String>,
@@ -42,7 +42,7 @@ impl ExamplesCommand {
             ExamplesAction::Clone { name, output } => self.clone_example(name, output.as_deref()),
         }
     }
-    
+
     fn get_examples() -> Vec<Example> {
         vec![
             Example {
@@ -71,38 +71,38 @@ impl ExamplesCommand {
             },
         ]
     }
-    
+
     fn list_examples(&self) -> Result<()> {
         println!("{} Available Example Projects", "→".bright_cyan());
         println!("{}", "─".repeat(55).bright_black());
         println!();
-        
+
         let examples = Self::get_examples();
-        
+
         for example in &examples {
             println!("  {} {}", "•".bright_cyan(), example.name.bright_white());
             println!("    {}", example.description);
             println!("    {}", example.repo.bright_blue());
             println!();
         }
-        
+
         println!("  {}:", "Usage".bright_white());
         println!("    solprivacy examples clone <name>");
         println!();
         println!("  {}:", "Example".bright_white());
         println!("    solprivacy examples clone noir-solana");
         println!("    solprivacy examples clone token2022-confidential --output my-project");
-        
+
         Ok(())
     }
-    
+
     fn clone_example(&self, name: &str, output: Option<&str>) -> Result<()> {
         println!("{} Clone Example Project", "→".bright_cyan());
         println!("{}", "─".repeat(50).bright_black());
         println!();
-        
+
         let examples = Self::get_examples();
-        
+
         let example = match examples.iter().find(|e| e.name == name) {
             Some(e) => e,
             None => {
@@ -115,29 +115,33 @@ impl ExamplesCommand {
                 return Ok(());
             }
         };
-        
+
         let output_dir = output.unwrap_or(example.name);
-        
+
         if Path::new(output_dir).exists() {
-            println!("{} Directory '{}' already exists!", "✗".bright_red(), output_dir);
+            println!(
+                "{} Directory '{}' already exists!",
+                "✗".bright_red(),
+                output_dir
+            );
             return Ok(());
         }
-        
+
         println!("  {}:", "Example".bright_white());
         println!("  ├─ Name: {}", example.name.bright_cyan());
         println!("  ├─ Description: {}", example.description);
         println!("  └─ Output: {}", output_dir);
         println!();
-        
+
         // Check if git is available
         if Command::new("git").arg("--version").output().is_err() {
             println!("{} Git is not installed!", "✗".bright_red());
             println!("  Install git and try again.");
             return Ok(());
         }
-        
+
         println!("{} Cloning repository...", "→".bright_cyan());
-        
+
         // Clone the repository
         let clone_result = if let Some(subpath) = example.path {
             // Sparse checkout for specific path
@@ -148,14 +152,14 @@ impl ExamplesCommand {
                 .args(["clone", "--depth", "1", example.repo, output_dir])
                 .status()
         };
-        
+
         match clone_result {
             Ok(status) if status.success() => {
                 println!("{} Example cloned successfully!", "✓".bright_green());
                 println!();
                 println!("  {}:", "Next Steps".bright_white());
                 println!("    1. cd {}", output_dir);
-                
+
                 match example.name {
                     "noir-solana" => {
                         println!("    2. nargo check");
@@ -183,25 +187,30 @@ impl ExamplesCommand {
                 println!("{} Failed to run git: {}", "✗".bright_red(), e);
             }
         }
-        
+
         Ok(())
     }
-    
-    fn sparse_clone(&self, repo: &str, output_dir: &str, subpath: &str) -> std::io::Result<std::process::ExitStatus> {
+
+    fn sparse_clone(
+        &self,
+        repo: &str,
+        output_dir: &str,
+        subpath: &str,
+    ) -> std::io::Result<std::process::ExitStatus> {
         // For sparse checkout, we do a regular clone with depth 1
         // In practice, for simplicity we just do a full shallow clone
         // and inform the user about the relevant path
-        
+
         let status = Command::new("git")
             .args(["clone", "--depth", "1", repo, output_dir])
             .status()?;
-        
+
         if status.success() {
             println!();
             println!("  {} The relevant code is in:", "ℹ".bright_blue());
             println!("    {}/{}", output_dir, subpath);
         }
-        
+
         Ok(status)
     }
 }

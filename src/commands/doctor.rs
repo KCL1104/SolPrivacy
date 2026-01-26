@@ -1,10 +1,10 @@
+use crate::config::AppConfig;
+use crate::error::Result;
 use clap::{Args, Subcommand};
 use colored::Colorize;
-use std::process::Command;
-use std::path::Path;
 use std::fs;
-use crate::error::Result;
-use crate::config::AppConfig;
+use std::path::Path;
+use std::process::Command;
 
 /// Comprehensive diagnostic and troubleshooting commands
 #[derive(Args)]
@@ -20,39 +20,39 @@ pub enum DoctorAction {
         /// Run verbose diagnostics with detailed output
         #[arg(short, long)]
         verbose: bool,
-        
+
         /// Export diagnostics to JSON file
         #[arg(long)]
         export: Option<String>,
     },
-    
+
     /// Check environment variables and system configuration
     Env,
-    
+
     /// Verify all toolchain dependencies
     Toolchain {
         /// Show installation instructions for missing tools
         #[arg(short, long)]
         fix: bool,
     },
-    
+
     /// Test network connectivity to Solana clusters
     Network {
         /// Test all networks (devnet, testnet, mainnet)
         #[arg(short, long)]
         all: bool,
     },
-    
+
     /// Validate project configuration files
     Config,
-    
+
     /// Check for common issues and suggest fixes
     Troubleshoot {
         /// Specific issue to troubleshoot (rpc, keys, builds, proofs)
         #[arg(short, long)]
         issue: Option<String>,
     },
-    
+
     /// Generate diagnostic report for support
     Report {
         /// Output file path
@@ -64,7 +64,9 @@ pub enum DoctorAction {
 impl DoctorCommand {
     pub async fn run(&self) -> Result<()> {
         match &self.action {
-            DoctorAction::Check { verbose, export } => self.run_full_check(*verbose, export.clone()).await,
+            DoctorAction::Check { verbose, export } => {
+                self.run_full_check(*verbose, export.clone()).await
+            }
             DoctorAction::Env => self.check_environment().await,
             DoctorAction::Toolchain { fix } => self.check_toolchain(*fix).await,
             DoctorAction::Network { all } => self.check_network(*all).await,
@@ -101,7 +103,11 @@ impl DoctorCommand {
         println!();
 
         // 3. Configuration Check
-        println!("  {} {}", "3.".bright_white(), "Configuration".bright_cyan());
+        println!(
+            "  {} {}",
+            "3.".bright_white(),
+            "Configuration".bright_cyan()
+        );
         let config_result = self.check_config_quick(verbose);
         if !config_result.0 {
             issues.extend(config_result.1.clone());
@@ -123,7 +129,10 @@ impl DoctorCommand {
         println!();
 
         if issues.is_empty() && warnings.is_empty() {
-            println!("{} All checks passed! Your environment is ready.", "✓".bright_green());
+            println!(
+                "{} All checks passed! Your environment is ready.",
+                "✓".bright_green()
+            );
         } else {
             if !issues.is_empty() {
                 println!("{} {} issue(s) found:", "✗".bright_red(), issues.len());
@@ -141,7 +150,10 @@ impl DoctorCommand {
                 println!();
             }
 
-            println!("  Run {} for detailed troubleshooting", "solprivacy doctor troubleshoot".bright_cyan());
+            println!(
+                "  Run {} for detailed troubleshooting",
+                "solprivacy doctor troubleshoot".bright_cyan()
+            );
         }
 
         // Export if requested
@@ -152,7 +164,10 @@ impl DoctorCommand {
                 "warnings": warnings,
                 "passed": issues.is_empty(),
             });
-            fs::write(&path, serde_json::to_string_pretty(&report).unwrap_or_default())?;
+            fs::write(
+                &path,
+                serde_json::to_string_pretty(&report).unwrap_or_default(),
+            )?;
             println!();
             println!("  Diagnostic report exported to: {}", path.bright_green());
         }
@@ -185,7 +200,7 @@ impl DoctorCommand {
         if let Ok(path) = std::env::var("PATH") {
             let has_cargo = path.contains(".cargo/bin") || path.contains(".cargo\\bin");
             let has_solana = path.contains(".local/share/solana") || path.contains("solana");
-            
+
             if !has_cargo {
                 warnings.push("~/.cargo/bin not in PATH".to_string());
                 if verbose {
@@ -209,9 +224,11 @@ impl DoctorCommand {
         let solana_config = dirs::home_dir()
             .map(|h| h.join(".config/solana/cli/config.yml"))
             .filter(|p| p.exists());
-        
+
         if solana_config.is_none() {
-            warnings.push("Solana CLI not configured (run: solana config set --url devnet)".to_string());
+            warnings.push(
+                "Solana CLI not configured (run: solana config set --url devnet)".to_string(),
+            );
             if verbose {
                 println!("    {} Solana CLI config", "⚠".bright_yellow());
             }
@@ -249,7 +266,12 @@ impl DoctorCommand {
             if self.check_command(cmd) {
                 if verbose {
                     let version = self.get_version(cmd).unwrap_or_default();
-                    println!("    {} {} {}", "✓".bright_green(), name, version.bright_black());
+                    println!(
+                        "    {} {} {}",
+                        "✓".bright_green(),
+                        name,
+                        version.bright_black()
+                    );
                 }
             } else {
                 issues.push(format!("{} not installed", name));
@@ -262,7 +284,12 @@ impl DoctorCommand {
             if self.check_command(cmd) {
                 if verbose {
                     let version = self.get_version(cmd).unwrap_or_default();
-                    println!("    {} {} {}", "✓".bright_green(), name, version.bright_black());
+                    println!(
+                        "    {} {} {}",
+                        "✓".bright_green(),
+                        name,
+                        version.bright_black()
+                    );
                 }
             } else {
                 warnings.push(format!("{} not installed (optional)", name));
@@ -289,8 +316,7 @@ impl DoctorCommand {
             Ok(config) => {
                 if verbose {
                     println!("    {} SolPrivacy config loaded", "✓".bright_green());
-                    println!("    {} RPC: {}", "•".bright_black(), 
-                        config.get_rpc_url());
+                    println!("    {} RPC: {}", "•".bright_black(), config.get_rpc_url());
                 }
 
                 // Check if using mainnet without explicit confirmation
@@ -311,7 +337,10 @@ impl DoctorCommand {
 
         // Check for local project
         if (Path::new("Cargo.toml").exists() || Path::new("Anchor.toml").exists()) && verbose {
-            println!("    {} Project detected in current directory", "✓".bright_green());
+            println!(
+                "    {} Project detected in current directory",
+                "✓".bright_green()
+            );
         }
 
         if ok {
@@ -373,18 +402,35 @@ impl DoctorCommand {
 
         // Environment variables
         println!("  {}:", "Environment Variables".bright_white());
-        
+
         let vars = vec![
             ("HOME", std::env::var("HOME").ok()),
-            ("PATH", std::env::var("PATH").ok().map(|p| format!("{}...", &p[..p.len().min(50)]))),
+            (
+                "PATH",
+                std::env::var("PATH")
+                    .ok()
+                    .map(|p| format!("{}...", &p[..p.len().min(50)])),
+            ),
             ("SOLANA_CONFIG", std::env::var("SOLANA_CONFIG").ok()),
-            ("ANCHOR_PROVIDER_URL", std::env::var("ANCHOR_PROVIDER_URL").ok()),
-            ("HELIUS_API_KEY", std::env::var("HELIUS_API_KEY").ok().map(|_| "[SET]".to_string())),
+            (
+                "ANCHOR_PROVIDER_URL",
+                std::env::var("ANCHOR_PROVIDER_URL").ok(),
+            ),
+            (
+                "HELIUS_API_KEY",
+                std::env::var("HELIUS_API_KEY")
+                    .ok()
+                    .map(|_| "[SET]".to_string()),
+            ),
         ];
 
         for (name, value) in vars {
             let display = value.as_deref().unwrap_or("[not set]");
-            let icon = if value.is_some() { "✓".bright_green() } else { "○".bright_black() };
+            let icon = if value.is_some() {
+                "✓".bright_green()
+            } else {
+                "○".bright_black()
+            };
             println!("    {} {:20} {}", icon, name, display.bright_black());
         }
         println!();
@@ -395,7 +441,7 @@ impl DoctorCommand {
             let config_path = home.join(".config/solana/cli/config.yml");
             if config_path.exists() {
                 println!("    {} Config file exists", "✓".bright_green());
-                
+
                 // Try to get current config
                 if let Ok(output) = Command::new("solana").arg("config").arg("get").output() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -406,7 +452,10 @@ impl DoctorCommand {
             } else {
                 println!("    {} No config file found", "○".bright_black());
                 println!();
-                println!("    Run: {}", "solana config set --url devnet".bright_cyan());
+                println!(
+                    "    Run: {}",
+                    "solana config set --url devnet".bright_cyan()
+                );
             }
         }
 
@@ -419,11 +468,27 @@ impl DoctorCommand {
         println!();
 
         let tools = vec![
-            ("rustc", "Rust Compiler", "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"),
+            (
+                "rustc",
+                "Rust Compiler",
+                "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
+            ),
             ("cargo", "Cargo", "Installed with Rust"),
-            ("solana", "Solana CLI", "sh -c \"$(curl -sSfL https://release.anza.xyz/stable/install)\""),
-            ("anchor", "Anchor Framework", "cargo install --git https://github.com/coral-xyz/anchor avm --locked"),
-            ("nargo", "Noir Compiler", "curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash"),
+            (
+                "solana",
+                "Solana CLI",
+                "sh -c \"$(curl -sSfL https://release.anza.xyz/stable/install)\"",
+            ),
+            (
+                "anchor",
+                "Anchor Framework",
+                "cargo install --git https://github.com/coral-xyz/anchor avm --locked",
+            ),
+            (
+                "nargo",
+                "Noir Compiler",
+                "curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash",
+            ),
             ("light", "Light Protocol CLI", "cargo install light-cli"),
         ];
 
@@ -435,13 +500,22 @@ impl DoctorCommand {
         for (cmd, name, install) in &tools {
             let installed = self.check_command(cmd);
             let version = if installed {
-                self.get_version(cmd).unwrap_or_else(|| "unknown".to_string())
+                self.get_version(cmd)
+                    .unwrap_or_else(|| "unknown".to_string())
             } else {
                 "not installed".to_string()
             };
 
-            let icon = if installed { "✓".bright_green() } else { "✗".bright_red() };
-            let ver_color = if installed { version.bright_green() } else { version.bright_red() };
+            let icon = if installed {
+                "✓".bright_green()
+            } else {
+                "✗".bright_red()
+            };
+            let ver_color = if installed {
+                version.bright_green()
+            } else {
+                version.bright_red()
+            };
 
             println!("    {} {:.<25} {}", icon, format!("{} ", name), ver_color);
 
@@ -464,7 +538,10 @@ impl DoctorCommand {
         } else {
             println!("{} {} tool(s) missing", "⚠".bright_yellow(), missing.len());
             println!();
-            println!("  Run {} to see installation commands", "solprivacy doctor toolchain --fix".bright_cyan());
+            println!(
+                "  Run {} to see installation commands",
+                "solprivacy doctor toolchain --fix".bright_cyan()
+            );
         }
 
         Ok(())
@@ -509,7 +586,8 @@ impl DoctorCommand {
 
             match result {
                 Ok(resp) if resp.status().is_success() => {
-                    println!("    {} {:.<20} {} ({}ms)", 
+                    println!(
+                        "    {} {:.<20} {} ({}ms)",
                         "✓".bright_green(),
                         format!("{} ", name),
                         "reachable".bright_green(),
@@ -517,7 +595,8 @@ impl DoctorCommand {
                     );
                 }
                 _ => {
-                    println!("    {} {:.<20} {}", 
+                    println!(
+                        "    {} {:.<20} {}",
                         "✗".bright_red(),
                         format!("{} ", name),
                         "unreachable".bright_red()
@@ -573,8 +652,24 @@ impl DoctorCommand {
                 println!();
                 println!("    RPC URL:     {}", config.get_rpc_url().bright_black());
                 println!("    Network:     {}", config.network.bright_black());
-                println!("    Helius Key:  {}", if config.rpc.helius_api_key.is_some() { "[configured]" } else { "[not set]" }.bright_black());
-                println!("    Photon URL:  {}", config.rpc.photon_url.as_deref().unwrap_or("(default)").bright_black());
+                println!(
+                    "    Helius Key:  {}",
+                    if config.rpc.helius_api_key.is_some() {
+                        "[configured]"
+                    } else {
+                        "[not set]"
+                    }
+                    .bright_black()
+                );
+                println!(
+                    "    Photon URL:  {}",
+                    config
+                        .rpc
+                        .photon_url
+                        .as_deref()
+                        .unwrap_or("(default)")
+                        .bright_black()
+                );
             }
             Err(_) => {
                 println!("    {} No config file (using defaults)", "○".bright_black());
@@ -584,7 +679,7 @@ impl DoctorCommand {
 
         // Local project check
         println!("  {}:", "Project Detection".bright_white());
-        
+
         let checks = vec![
             ("Cargo.toml", "Rust/Cargo project"),
             ("Anchor.toml", "Anchor project"),
@@ -601,7 +696,10 @@ impl DoctorCommand {
         }
 
         if !found_any {
-            println!("    {} No project files in current directory", "○".bright_black());
+            println!(
+                "    {} No project files in current directory",
+                "○".bright_black()
+            );
         }
 
         Ok(())
@@ -674,7 +772,10 @@ impl DoctorCommand {
         println!("    {} Clear build cache", "2.".bright_cyan());
         println!("       cargo clean");
         println!();
-        println!("    {} Check Solana version compatibility", "3.".bright_cyan());
+        println!(
+            "    {} Check Solana version compatibility",
+            "3.".bright_cyan()
+        );
         println!("       solana --version");
         println!("       # Ensure SDK version matches in Cargo.toml");
         println!();
@@ -714,27 +815,48 @@ impl DoctorCommand {
     fn troubleshoot_all(&self) -> Result<()> {
         println!("  {}:", "Common Issue Categories".bright_white());
         println!();
-        println!("    {} {} - Connection and endpoint issues", 
-            "rpc".bright_cyan(), " ".repeat(10));
+        println!(
+            "    {} {} - Connection and endpoint issues",
+            "rpc".bright_cyan(),
+            " ".repeat(10)
+        );
         println!("       solprivacy doctor troubleshoot --issue rpc");
         println!();
-        println!("    {} {} - Wallet and keypair problems", 
-            "keys".bright_cyan(), " ".repeat(9));
+        println!(
+            "    {} {} - Wallet and keypair problems",
+            "keys".bright_cyan(),
+            " ".repeat(9)
+        );
         println!("       solprivacy doctor troubleshoot --issue keys");
         println!();
-        println!("    {} {} - Compilation and build errors", 
-            "builds".bright_cyan(), " ".repeat(7));
+        println!(
+            "    {} {} - Compilation and build errors",
+            "builds".bright_cyan(),
+            " ".repeat(7)
+        );
         println!("       solprivacy doctor troubleshoot --issue builds");
         println!();
-        println!("    {} {} - ZK proof generation issues", 
-            "proofs".bright_cyan(), " ".repeat(7));
+        println!(
+            "    {} {} - ZK proof generation issues",
+            "proofs".bright_cyan(),
+            " ".repeat(7)
+        );
         println!("       solprivacy doctor troubleshoot --issue proofs");
         println!();
         println!("  {}:", "Quick Fixes".bright_white());
         println!();
-        println!("    • Run full diagnostic: {}", "solprivacy doctor check -v".bright_cyan());
-        println!("    • Verify toolchain:    {}", "solprivacy doctor toolchain --fix".bright_cyan());
-        println!("    • Test network:        {}", "solprivacy doctor network --all".bright_cyan());
+        println!(
+            "    • Run full diagnostic: {}",
+            "solprivacy doctor check -v".bright_cyan()
+        );
+        println!(
+            "    • Verify toolchain:    {}",
+            "solprivacy doctor toolchain --fix".bright_cyan()
+        );
+        println!(
+            "    • Test network:        {}",
+            "solprivacy doctor network --all".bright_cyan()
+        );
         Ok(())
     }
 
@@ -744,7 +866,7 @@ impl DoctorCommand {
         println!();
 
         let mut report = String::new();
-        
+
         report.push_str("SolPrivacy Diagnostic Report\n");
         report.push_str(&"=".repeat(50));
         report.push_str("\n\n");
@@ -753,12 +875,17 @@ impl DoctorCommand {
         report.push_str("## System Information\n\n");
         report.push_str(&format!("OS: {}\n", std::env::consts::OS));
         report.push_str(&format!("Architecture: {}\n", std::env::consts::ARCH));
-        report.push_str(&format!("Generated: {}\n\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+        report.push_str(&format!(
+            "Generated: {}\n\n",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+        ));
 
         // Toolchain versions
         report.push_str("## Toolchain Versions\n\n");
         for cmd in &["rustc", "cargo", "solana", "anchor", "nargo", "light"] {
-            let version = self.get_version(cmd).unwrap_or_else(|| "not installed".to_string());
+            let version = self
+                .get_version(cmd)
+                .unwrap_or_else(|| "not installed".to_string());
             report.push_str(&format!("{}: {}\n", cmd, version));
         }
         report.push('\n');
@@ -768,7 +895,14 @@ impl DoctorCommand {
         if let Ok(config) = AppConfig::load() {
             report.push_str(&format!("RPC URL: {}\n", config.get_rpc_url()));
             report.push_str(&format!("Network: {}\n", config.network));
-            report.push_str(&format!("Helius API: {}\n", if config.rpc.helius_api_key.is_some() { "configured" } else { "not set" }));
+            report.push_str(&format!(
+                "Helius API: {}\n",
+                if config.rpc.helius_api_key.is_some() {
+                    "configured"
+                } else {
+                    "not set"
+                }
+            ));
         } else {
             report.push_str("Config: Using defaults\n");
         }
@@ -782,8 +916,12 @@ impl DoctorCommand {
         }
 
         fs::write(output, &report)?;
-        
-        println!("  {} Report saved to: {}", "✓".bright_green(), output.bright_cyan());
+
+        println!(
+            "  {} Report saved to: {}",
+            "✓".bright_green(),
+            output.bright_cyan()
+        );
         println!();
         println!("  Share this file when requesting support.");
 

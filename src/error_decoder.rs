@@ -5,10 +5,15 @@ pub fn decode_transaction_error(error_string: &str) -> String {
     // Check for common error patterns
     if let Some(code) = extract_custom_error_code(error_string) {
         if let Some(msg) = map_token_error(code) {
-            return format!("{} ({})\n  {}", "Transaction Failed".red().bold(), error_string, msg.yellow());
+            return format!(
+                "{} ({})\n  {}",
+                "Transaction Failed".red().bold(),
+                error_string,
+                msg.yellow()
+            );
         }
     }
-    
+
     // Fallback
     format!("{} ({})", "Transaction Failed".red().bold(), error_string)
 }
@@ -17,7 +22,9 @@ fn extract_custom_error_code(err: &str) -> Option<u32> {
     // Format: "custom program error: 0x1"
     if let Some(start) = err.find("custom program error: 0x") {
         let remainder = &err[start + 22..];
-        let end = remainder.find(|c: char| !c.is_ascii_hexdigit()).unwrap_or(remainder.len());
+        let end = remainder
+            .find(|c: char| !c.is_ascii_hexdigit())
+            .unwrap_or(remainder.len());
         let hex_str = &remainder[..end];
         return u32::from_str_radix(hex_str, 16).ok();
     }

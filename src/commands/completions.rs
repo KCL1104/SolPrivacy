@@ -1,8 +1,8 @@
-use clap::{CommandFactory, Args};
-use clap_complete::{generate, Shell};
-use std::io;
 use crate::error::Result;
-use crate::Cli; // Import the main Cli struct to generate completions for it
+use crate::Cli;
+use clap::{Args, CommandFactory};
+use clap_complete::{generate, Shell};
+use std::io; // Import the main Cli struct to generate completions for it
 
 /// Generate shell completion scripts
 #[derive(Args)]

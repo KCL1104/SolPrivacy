@@ -1,6 +1,10 @@
 // Allow deprecated spl_token_2022::instruction - migration to spl_token_2022_interface planned
 #![allow(deprecated)]
 
+use crate::config::AppConfig;
+use crate::error::{Result, SolPrivacyError};
+use crate::error_decoder::decode_transaction_error;
+use crate::validation::validate_pubkey;
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -11,20 +15,13 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_system_interface::instruction as system_instruction;
-use spl_token_2022::{
-    extension::ExtensionType,
-    state::Mint,
-    instruction as token_instruction,
-    id as token_2022_program_id,
-};
 use spl_associated_token_account::{
-    get_associated_token_address_with_program_id,
-    instruction::create_associated_token_account,
+    get_associated_token_address_with_program_id, instruction::create_associated_token_account,
 };
-use crate::config::AppConfig;
-use crate::error::{Result, SolPrivacyError};
-use crate::validation::validate_pubkey;
-use crate::error_decoder::decode_transaction_error;
+use spl_token_2022::{
+    extension::ExtensionType, id as token_2022_program_id, instruction as token_instruction,
+    state::Mint,
+};
 
 /// Create and manage Token-2022 confidential tokens
 #[derive(Args)]
@@ -40,45 +37,45 @@ pub enum MintAction {
         /// Token name (metadata)
         #[arg(short, long)]
         name: String,
-        
+
         /// Token symbol
         #[arg(short, long)]
         symbol: String,
-        
+
         /// Decimals (default: 9)
         #[arg(short, long, default_value = "9")]
         decimals: u8,
-        
+
         /// Initial supply to mint (optional)
         #[arg(long)]
         supply: Option<u64>,
-        
+
         /// Path to auditor keypair JSON (optional, for compliance)
         #[arg(short, long)]
         auditor: Option<String>,
-        
+
         /// Path to payer/authority keypair JSON
         #[arg(short, long, env = "SOLANA_KEYPAIR")]
         keypair: Option<String>,
-        
+
         /// Dry run - simulate without sending transaction
         #[arg(long)]
         dry_run: bool,
     },
-    
+
     /// Show information about a mint
     Info {
         /// Mint address
         #[arg()]
         mint: String,
     },
-    
+
     /// Check balance of a token account
     Balance {
         /// Token account or wallet address
         #[arg()]
         account: String,
-        
+
         /// Mint address (required if using wallet address)
         #[arg(short, long)]
         mint: Option<String>,
@@ -106,26 +103,44 @@ pub enum MintAction {
 impl MintCommand {
     pub async fn run(&self) -> Result<()> {
         match &self.action {
-            MintAction::Create { name, symbol, decimals, supply, auditor, keypair, dry_run } => {
-                self.create_mint(name, symbol, *decimals, *supply, auditor.as_deref(), keypair.as_deref(), *dry_run).await
+            MintAction::Create {
+                name,
+                symbol,
+                decimals,
+                supply,
+                auditor,
+                keypair,
+                dry_run,
+            } => {
+                self.create_mint(
+                    name,
+                    symbol,
+                    *decimals,
+                    *supply,
+                    auditor.as_deref(),
+                    keypair.as_deref(),
+                    *dry_run,
+                )
+                .await
             }
-            MintAction::Info { mint } => {
-                self.show_mint_info(mint).await
-            }
+            MintAction::Info { mint } => self.show_mint_info(mint).await,
             MintAction::Balance { account, mint } => {
                 self.show_balance(account, mint.as_deref()).await
             }
-            MintAction::MintTo { mint, to, amount, keypair } => {
-                self.mint_to(mint, to, *amount, keypair.as_deref()).await
-            }
+            MintAction::MintTo {
+                mint,
+                to,
+                amount,
+                keypair,
+            } => self.mint_to(mint, to, *amount, keypair.as_deref()).await,
         }
     }
-    
+
     #[allow(clippy::too_many_arguments)]
     async fn create_mint(
-        &self, 
-        name: &str, 
-        symbol: &str, 
+        &self,
+        name: &str,
+        symbol: &str,
         decimals: u8,
         supply: Option<u64>,
         auditor_path: Option<&str>,
@@ -135,11 +150,11 @@ impl MintCommand {
         println!("{} Token-2022 Confidential Mint Creator", "→".bright_cyan());
         println!("{}", "─".repeat(50).bright_black());
         println!();
-        
+
         // Load configuration
         let config = AppConfig::load()?;
         let rpc_url = config.get_rpc_url();
-        
+
         // Display configuration
         println!("  {}:", "Mint Configuration".bright_white());
         println!("  ├─ Name: {}", name.bright_cyan());
@@ -147,13 +162,15 @@ impl MintCommand {
         println!("  ├─ Decimals: {}", decimals);
         println!("  ├─ Network: {}", config.network);
         println!("  ├─ Extension: {}", "ConfidentialTransfer".bright_green());
-        
+
         // Load auditor key if provided
         let auditor_pubkey_bytes = if let Some(path) = auditor_path {
             match std::fs::read_to_string(path) {
                 Ok(content) => {
-                    let keypair: serde_json::Value = serde_json::from_str(&content)
-                        .map_err(|e| SolPrivacyError::Crypto(format!("Failed to parse auditor key: {}", e)))?;
+                    let keypair: serde_json::Value =
+                        serde_json::from_str(&content).map_err(|e| {
+                            SolPrivacyError::Crypto(format!("Failed to parse auditor key: {}", e))
+                        })?;
                     if let Some(pk) = keypair.get("public_key").and_then(|v| v.as_str()) {
                         println!("  ├─ Auditor: {}... ✓", &pk[..16.min(pk.len())]);
                         Some(pk.to_string())
@@ -170,13 +187,13 @@ impl MintCommand {
             println!("  ├─ Auditor: {}", "None (optional)".bright_black());
             None
         };
-        
+
         if let Some(s) = supply {
             println!("  ├─ Initial Supply: {}", format_amount(s, decimals));
         }
         println!("  └─ RPC: {}", rpc_url);
         println!();
-        
+
         // Dry run mode
         if dry_run {
             println!("{} Dry run mode - no transaction sent", "ℹ".bright_blue());
@@ -184,7 +201,7 @@ impl MintCommand {
             self.show_dry_run_info(decimals, supply, auditor_pubkey_bytes.is_some());
             return Ok(());
         }
-        
+
         // Check for keypair
         let keypair_path = match keypair_path {
             Some(p) => p.to_string(),
@@ -193,7 +210,7 @@ impl MintCommand {
                 let default_path = dirs::home_dir()
                     .map(|h| h.join(".config/solana/id.json"))
                     .and_then(|p| p.to_str().map(|s| s.to_string()));
-                
+
                 match default_path {
                     Some(p) if std::path::Path::new(&p).exists() => {
                         println!("{} Using default keypair: {}", "ℹ".bright_blue(), p);
@@ -211,35 +228,41 @@ impl MintCommand {
                 }
             }
         };
-        
+
         // Load payer keypair
         let payer = read_keypair_file(&keypair_path)
             .map_err(|e| SolPrivacyError::Crypto(format!("Failed to read keypair: {}", e)))?;
-        
+
         println!();
         println!("{} Connecting to {}...", "→".bright_cyan(), config.network);
-        
+
         // Connect to RPC
         let client = RpcClient::new_with_commitment(rpc_url.clone(), CommitmentConfig::confirmed());
-        
+
         // Check connection and balance
         match client.get_version() {
             Ok(version) => {
-                println!("{} Connected (Solana {})", "✓".bright_green(), version.solana_core);
+                println!(
+                    "{} Connected (Solana {})",
+                    "✓".bright_green(),
+                    version.solana_core
+                );
             }
             Err(e) => {
                 println!("{} Failed to connect: {}", "✗".bright_red(), e);
                 return Ok(());
             }
         }
-        
-        let balance = client.get_balance(&payer.pubkey())
+
+        let balance = client
+            .get_balance(&payer.pubkey())
             .map_err(|e| SolPrivacyError::Other(format!("Failed to get balance: {}", e)))?;
-        
+
         let balance_sol = balance as f64 / 1_000_000_000.0;
         println!("  Payer: {} ({:.4} SOL)", payer.pubkey(), balance_sol);
-        
-        if balance < 10_000_000 { // 0.01 SOL minimum
+
+        if balance < 10_000_000 {
+            // 0.01 SOL minimum
             println!();
             println!("{} Insufficient balance!", "✗".bright_red());
             println!("  Need at least 0.01 SOL for transaction fees");
@@ -248,36 +271,39 @@ impl MintCommand {
             println!("    solana airdrop 2 {} --url devnet", payer.pubkey());
             return Ok(());
         }
-        
+
         // Create mint
         println!();
         let pb = ProgressBar::new(4);
-        pb.set_style(ProgressStyle::default_bar()
-            .template("{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("█▓░"));
-        
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.cyan} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .unwrap()
+                .progress_chars("█▓░"),
+        );
+
         pb.set_message("Creating mint account...");
-        
+
         // Generate new mint keypair
         let mint_keypair = Keypair::new();
         let mint_pubkey = mint_keypair.pubkey();
-        
+
         // Calculate space needed for mint with confidential transfer extension
         let extensions = vec![ExtensionType::ConfidentialTransferMint];
         let space = ExtensionType::try_calculate_account_len::<Mint>(&extensions)
             .map_err(|e| SolPrivacyError::Other(format!("Failed to calculate space: {:?}", e)))?;
-        
+
         // Get rent
-        let rent = client.get_minimum_balance_for_rent_exemption(space)
+        let rent = client
+            .get_minimum_balance_for_rent_exemption(space)
             .map_err(|e| SolPrivacyError::Other(format!("Failed to get rent: {}", e)))?;
-        
+
         pb.inc(1);
         pb.set_message("Building transaction...");
-        
+
         // Build instructions
         let mut instructions = vec![];
-        
+
         // 1. Create account
         instructions.push(system_instruction::create_account(
             &payer.pubkey(),
@@ -286,7 +312,7 @@ impl MintCommand {
             space as u64,
             &token_2022_program_id(),
         ));
-        
+
         // 2. Initialize confidential transfer mint extension
         // Note: Using default authority (None = auto_approve all accounts)
         instructions.push(
@@ -294,29 +320,36 @@ impl MintCommand {
                 &token_2022_program_id(),
                 &mint_pubkey,
                 Some(payer.pubkey()), // authority
-                true, // auto_approve_new_accounts
-                None, // auditor_elgamal_pubkey (simplified for now)
-            ).map_err(|e| SolPrivacyError::Other(format!("Failed to create instruction: {:?}", e)))?
+                true,                 // auto_approve_new_accounts
+                None,                 // auditor_elgamal_pubkey (simplified for now)
+            )
+            .map_err(|e| {
+                SolPrivacyError::Other(format!("Failed to create instruction: {:?}", e))
+            })?,
         );
-        
+
         // 3. Initialize mint
         instructions.push(
             token_instruction::initialize_mint2(
                 &token_2022_program_id(),
                 &mint_pubkey,
-                &payer.pubkey(), // mint authority
+                &payer.pubkey(),       // mint authority
                 Some(&payer.pubkey()), // freeze authority
                 decimals,
-            ).map_err(|e| SolPrivacyError::Other(format!("Failed to create instruction: {:?}", e)))?
+            )
+            .map_err(|e| {
+                SolPrivacyError::Other(format!("Failed to create instruction: {:?}", e))
+            })?,
         );
-        
+
         pb.inc(1);
         pb.set_message("Sending transaction...");
-        
+
         // Get recent blockhash
-        let blockhash = client.get_latest_blockhash()
+        let blockhash = client
+            .get_latest_blockhash()
             .map_err(|e| SolPrivacyError::Other(format!("Failed to get blockhash: {}", e)))?;
-        
+
         // Create and sign transaction
         let transaction = Transaction::new_signed_with_payer(
             &instructions,
@@ -324,24 +357,25 @@ impl MintCommand {
             &[&payer, &mint_keypair],
             blockhash,
         );
-        
+
         // Send transaction
-        let signature = client.send_and_confirm_transaction(&transaction)
+        let signature = client
+            .send_and_confirm_transaction(&transaction)
             .map_err(|e| SolPrivacyError::Other(decode_transaction_error(&e.to_string())))?;
-        
+
         pb.inc(1);
-        
+
         // Create ATA and mint initial supply if specified
         if let Some(initial_supply) = supply {
             pb.set_message("Creating token account...");
-            
+
             // Get ATA address
             let ata = get_associated_token_address_with_program_id(
                 &payer.pubkey(),
                 &mint_pubkey,
                 &token_2022_program_id(),
             );
-            
+
             // Create ATA instruction
             let create_ata_ix = create_associated_token_account(
                 &payer.pubkey(),
@@ -349,7 +383,7 @@ impl MintCommand {
                 &mint_pubkey,
                 &token_2022_program_id(),
             );
-            
+
             // Mint instruction
             let mint_ix = token_instruction::mint_to(
                 &token_2022_program_id(),
@@ -358,25 +392,30 @@ impl MintCommand {
                 &payer.pubkey(),
                 &[],
                 initial_supply,
-            ).map_err(|e| SolPrivacyError::Other(format!("Failed to create mint instruction: {:?}", e)))?;
-            
-            let blockhash = client.get_latest_blockhash()
+            )
+            .map_err(|e| {
+                SolPrivacyError::Other(format!("Failed to create mint instruction: {:?}", e))
+            })?;
+
+            let blockhash = client
+                .get_latest_blockhash()
                 .map_err(|e| SolPrivacyError::Other(format!("Failed to get blockhash: {}", e)))?;
-            
+
             let tx = Transaction::new_signed_with_payer(
                 &[create_ata_ix, mint_ix],
                 Some(&payer.pubkey()),
                 &[&payer],
                 blockhash,
             );
-            
-            client.send_and_confirm_transaction(&tx)
+
+            client
+                .send_and_confirm_transaction(&tx)
                 .map_err(|e| SolPrivacyError::Other(format!("Failed to mint: {}", e)))?;
         }
-        
+
         pb.inc(1);
         pb.finish_and_clear();
-        
+
         // Success output
         println!("{} Mint created successfully!", "✓".bright_green());
         println!();
@@ -385,7 +424,7 @@ impl MintCommand {
         println!("  ├─ Symbol: {}", symbol.bright_yellow());
         println!("  ├─ Decimals: {}", decimals);
         println!("  ├─ Extension: ConfidentialTransfer ✓");
-        
+
         if let Some(s) = supply {
             println!("  ├─ Initial Supply: {}", format_amount(s, decimals));
             let ata = get_associated_token_address_with_program_id(
@@ -395,10 +434,10 @@ impl MintCommand {
             );
             println!("  ├─ Minted To: {}", ata);
         }
-        
+
         println!("  └─ Transaction: {}", signature);
         println!();
-        
+
         // Explorer link
         let explorer_base = match config.network.as_str() {
             "mainnet" => "https://solscan.io",
@@ -407,17 +446,20 @@ impl MintCommand {
         println!("  {}:", "View on Explorer".bright_white());
         println!("    {}/token/{}", explorer_base, mint_pubkey);
         println!();
-        
+
         // Next steps
         println!("  {}:", "Next Steps".bright_white());
         println!("    1. Create token accounts:");
         println!("       solprivacy account create --mint {}", mint_pubkey);
         println!("    2. Transfer tokens:");
-        println!("       solprivacy transfer --mint {} --to <ADDR> --amount 100", mint_pubkey);
-        
+        println!(
+            "       solprivacy transfer --mint {} --to <ADDR> --amount 100",
+            mint_pubkey
+        );
+
         Ok(())
     }
-    
+
     fn show_dry_run_info(&self, decimals: u8, supply: Option<u64>, has_auditor: bool) {
         println!("  {}:", "Transaction Preview".bright_white());
         println!("  ├─ 1. Create Mint account (Token-2022 program)");
@@ -428,7 +470,10 @@ impl MintCommand {
         println!("  ├─ 3. Initialize Mint with decimals={}", decimals);
         if let Some(s) = supply {
             println!("  ├─ 4. Create Associated Token Account");
-            println!("  └─ 5. Mint {} tokens to your account", format_amount(s, decimals));
+            println!(
+                "  └─ 5. Mint {} tokens to your account",
+                format_amount(s, decimals)
+            );
         } else {
             println!("  └─ (No initial supply - mint manually later)");
         }
@@ -438,36 +483,49 @@ impl MintCommand {
         println!();
         println!("  Remove --dry-run to execute on-chain");
     }
-    
+
     async fn show_mint_info(&self, mint_address: &str) -> Result<()> {
         println!("{} Mint Information", "→".bright_cyan());
         println!("{}", "─".repeat(50).bright_black());
         println!();
-        
+
         let config = AppConfig::load()?;
         let rpc_url = config.get_rpc_url();
-        
+
         let mint_pubkey = validate_pubkey(mint_address)?;
-        
+
         let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
-        
+
         match client.get_account(&mint_pubkey) {
             Ok(account) => {
-                let is_token_2022 = account.owner.to_string() == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
-                
+                let is_token_2022 =
+                    account.owner.to_string() == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
                 let owner_str = account.owner.to_string();
                 println!("  {}:", "Account Info".bright_white());
                 println!("  ├─ Address: {}", mint_pubkey);
-                println!("  ├─ Owner: {}", if is_token_2022 { "Token-2022" } else { &owner_str });
-                println!("  ├─ Lamports: {} ({:.6} SOL)", account.lamports, account.lamports as f64 / 1e9);
+                println!(
+                    "  ├─ Owner: {}",
+                    if is_token_2022 {
+                        "Token-2022"
+                    } else {
+                        &owner_str
+                    }
+                );
+                println!(
+                    "  ├─ Lamports: {} ({:.6} SOL)",
+                    account.lamports,
+                    account.lamports as f64 / 1e9
+                );
                 println!("  └─ Data Size: {} bytes", account.data.len());
-                
+
                 if is_token_2022 {
                     println!();
                     println!("  {} Token-2022 mint detected", "✓".bright_green());
-                    
+
                     // Check for extensions
-                    if account.data.len() > 82 { // Has extensions
+                    if account.data.len() > 82 {
+                        // Has extensions
                         println!("  Extensions: Likely ConfidentialTransfer enabled");
                     }
                 }
@@ -476,20 +534,21 @@ impl MintCommand {
                 println!("{} Account not found: {}", "✗".bright_red(), e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     async fn show_balance(&self, account: &str, mint: Option<&str>) -> Result<()> {
         println!("{} Token Balance", "→".bright_cyan());
         println!("{}", "─".repeat(50).bright_black());
         println!();
-        
+
         let config = AppConfig::load()?;
-        let client = RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
-        
+        let client =
+            RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
+
         let account_pubkey = validate_pubkey(account)?;
-        
+
         // If mint is provided, calculate ATA
         let token_account = if let Some(mint_str) = mint {
             let mint_pubkey = validate_pubkey(mint_str)?;
@@ -501,10 +560,10 @@ impl MintCommand {
         } else {
             account_pubkey
         };
-        
+
         println!("  Checking: {}", token_account);
         println!();
-        
+
         match client.get_token_account_balance(&token_account) {
             Ok(balance) => {
                 println!("  {}:", "Balance".bright_white());
@@ -521,54 +580,62 @@ impl MintCommand {
                 println!("    • Use --mint to specify the token mint");
             }
         }
-        
+
         Ok(())
     }
-    async fn mint_to(&self, mint: &str, to: &str, amount: f64, keypair_path: Option<&str>) -> Result<()> {
+    async fn mint_to(
+        &self,
+        mint: &str,
+        to: &str,
+        amount: f64,
+        keypair_path: Option<&str>,
+    ) -> Result<()> {
         println!("{} Minting Tokens...", "→".bright_cyan());
-        
+
         // Load configuration and client
         let config = AppConfig::load()?;
-        let client = RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
-        
+        let client =
+            RpcClient::new_with_commitment(config.get_rpc_url(), CommitmentConfig::confirmed());
+
         let mint_pubkey = validate_pubkey(mint)?;
         let recipient_pubkey = validate_pubkey(to)?;
-        
+
         // Load payer/authority
         let keypair_path = match keypair_path {
             Some(p) => p.to_string(),
-            None => {
-                dirs::home_dir()
+            None => dirs::home_dir()
                 .map(|h| h.join(".config/solana/id.json"))
                 .and_then(|p| p.to_str().map(|s| s.to_string()))
-                .ok_or_else(|| SolPrivacyError::Other("Default keypair not found".to_string()))?
-            }
+                .ok_or_else(|| SolPrivacyError::Other("Default keypair not found".to_string()))?,
         };
         let payer = read_keypair_file(&keypair_path)
             .map_err(|e| SolPrivacyError::Crypto(format!("Failed to read keypair: {}", e)))?;
-            
+
         // Get mint decimals
-        let mint_account = client.get_account(&mint_pubkey)
+        let mint_account = client
+            .get_account(&mint_pubkey)
             .map_err(|e| SolPrivacyError::Other(format!("Failed to get mint: {}", e)))?;
-            
+
         // Check if mint account has data
         if mint_account.data.len() < 45 {
-             return Err(SolPrivacyError::Other("Invalid mint account data size".to_string()));
+            return Err(SolPrivacyError::Other(
+                "Invalid mint account data size".to_string(),
+            ));
         }
         let decimals = mint_account.data[44];
-        
+
         // Calculate raw amount
         let raw_amount = (amount * 10f64.powi(decimals as i32)) as u64;
-        
+
         // Get or create destination ATA
         let ata = get_associated_token_address_with_program_id(
             &recipient_pubkey,
             &mint_pubkey,
             &token_2022_program_id(),
         );
-        
+
         let mut instructions = vec![];
-        
+
         if client.get_account(&ata).is_err() {
             println!("  Creating associated token account: {}", ata);
             instructions.push(create_associated_token_account(
@@ -578,34 +645,39 @@ impl MintCommand {
                 &token_2022_program_id(),
             ));
         } else {
-             println!("  Using associated token account: {}", ata);
+            println!("  Using associated token account: {}", ata);
         }
-        
-        instructions.push(token_instruction::mint_to(
-            &token_2022_program_id(),
-            &mint_pubkey,
-            &ata,
-            &payer.pubkey(), // mint authority
-            &[],
-            raw_amount,
-        ).map_err(|e| SolPrivacyError::Other(format!("Instruction error: {:?}", e)))?);
-        
-        let blockhash = client.get_latest_blockhash()
+
+        instructions.push(
+            token_instruction::mint_to(
+                &token_2022_program_id(),
+                &mint_pubkey,
+                &ata,
+                &payer.pubkey(), // mint authority
+                &[],
+                raw_amount,
+            )
+            .map_err(|e| SolPrivacyError::Other(format!("Instruction error: {:?}", e)))?,
+        );
+
+        let blockhash = client
+            .get_latest_blockhash()
             .map_err(|e| SolPrivacyError::Other(format!("Failed to get blockhash: {}", e)))?;
-            
+
         let tx = Transaction::new_signed_with_payer(
             &instructions,
             Some(&payer.pubkey()),
             &[&payer],
             blockhash,
         );
-        
-        let signature = client.send_and_confirm_transaction(&tx)
+
+        let signature = client
+            .send_and_confirm_transaction(&tx)
             .map_err(|e| SolPrivacyError::Other(decode_transaction_error(&e.to_string())))?;
-            
+
         println!("{} Minted {} tokens to {}", "✓".bright_green(), amount, to);
         println!("  Signature: {}", signature);
-        
+
         Ok(())
     }
 }
