@@ -14,6 +14,7 @@ pub enum SolPrivacyError {
     #[error("RPC Client error: {0}")]
     Rpc(String),
 
+    #[allow(dead_code)]
     #[error("Solana Client error: {0}")]
     SolanaClient(String),
 

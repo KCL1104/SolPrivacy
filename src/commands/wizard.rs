@@ -1,6 +1,6 @@
 use clap::Args;
 use colored::Colorize;
-use crate::error::{Result, SolPrivacyError};
+use crate::error::Result;
 use dialoguer::{theme::ColorfulTheme, Select, Input, Confirm};
 use std::process::Command;
 

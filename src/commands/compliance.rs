@@ -12,10 +12,7 @@ use solana_sdk::signature::Signature;
 use std::str::FromStr;
 use base64::Engine;
 use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
-use std::path::Path;
-use spl_token_2022::extension::confidential_transfer::instruction::ConfidentialTransferInstruction;
 // Use manual instruction parsing as the safe fallback since we removed conflicting solana-zk-token-sdk
 
 /// Range Protocol compliance and risk assessment commands
@@ -130,7 +127,7 @@ impl ComplianceCommand {
         }
     }
 
-    async fn audit_transfers(&self, keypair_path: &str, mint_filter: Option<&str>, output_file: &str, limit: usize, rpc_url_override: Option<&str>) -> Result<()> {
+    async fn audit_transfers(&self, keypair_path: &str, _mint_filter: Option<&str>, output_file: &str, limit: usize, rpc_url_override: Option<&str>) -> Result<()> {
         println!("{} Confidential Transfer Audit", "→".bright_cyan());
         println!("{}", "─".repeat(60).bright_black());
         
@@ -141,7 +138,7 @@ impl ComplianceCommand {
         // 2. Load Auditor Key
         println!("  {} Loading Auditor Key from: {}", "→".bright_cyan(), keypair_path);
         let key_json = fs::read_to_string(keypair_path)
-            .map_err(|e| SolPrivacyError::Io(e))?;
+            .map_err(SolPrivacyError::Io)?;
         let key_data: ElGamalKeypairJson = serde_json::from_str(&key_json)?;
         
         let secret_bytes = base64::engine::general_purpose::STANDARD
@@ -159,7 +156,7 @@ impl ComplianceCommand {
         let public_point = &secret_scalar * RISTRETTO_BASEPOINT_TABLE;
         let auditor_pubkey = Pubkey::new_from_array(*public_point.compress().as_bytes());
         
-        println!("  {} Auditor Address: {}", "✓".bright_green(), auditor_pubkey.to_string());
+        println!("  {} Auditor Address: {}", "✓".bright_green(), auditor_pubkey);
         println!("  {} Connecting to RPC: {}", "→".bright_cyan(), rpc_url);
         
         let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
@@ -172,7 +169,7 @@ impl ComplianceCommand {
             
         let mut found_count = 0;
         let mut report = csv::Writer::from_path(output_file)?;
-        report.write_record(&["Signature", "Date", "Sender", "Recipient", "Amount", "Status"])?;
+        report.write_record(["Signature", "Date", "Sender", "Recipient", "Amount", "Status"])?;
         
         for sig_info in signatures.iter().take(limit) {
             let sig_str = &sig_info.signature;
@@ -195,9 +192,8 @@ impl ComplianceCommand {
                          let date = if let Some(time) = tx.block_time {
                              chrono::DateTime::from_timestamp(time, 0).map(|d| d.to_string()).unwrap_or_default()
                          } else { "Unknown".to_string() };
-                         
-                         report.write_record(&[
-                            sig_str, &date, "Encrypted", "Encrypted", "Confidential", "Audited"
+                                                  report.write_record([
+                            sig_str, date.as_str(), "Encrypted", "Encrypted", "Confidential", "Audited"
                         ])?;
                     }
                 }
@@ -263,7 +259,7 @@ impl ComplianceCommand {
     fn display_risk_result(&self, risk_data: &RangeRiskResponse) {
         println!();
         if let Some(score) = risk_data.risk_score {
-            let (color, icon) = match score {
+            let (color, _icon) = match score {
                 0..=2 => ("green", "✓"),
                 3..=5 => ("yellow", "⚠"),
                 6..=8 => ("red", "⚠"),
@@ -284,7 +280,7 @@ impl ComplianceCommand {
         }
     }
     
-    async fn check_batch(&self, addresses: &str, format: &str) -> Result<()> {
+    async fn check_batch(&self, addresses: &str, _format: &str) -> Result<()> {
         // Simple batch implementation reusing check_address logic typically
         // For brevity in update, just logging
         println!("Batch check for {}...", addresses);

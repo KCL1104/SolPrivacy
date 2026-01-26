@@ -2,18 +2,16 @@ use clap::{Args, Subcommand};
 use colored::Colorize;
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_TABLE;
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroize;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use crate::error::{Result, SolPrivacyError};
 
-// Crypto dependencies
 use argon2::{
     password_hash::SaltString,
     Argon2,
-    PasswordHasher, // Needed for trait bounds usually, but warning says unused? Ah, argon2::Argon2 implements it.
 };
 use chacha20poly1305::{
     aead::{Aead, AeadCore, KeyInit},
@@ -149,14 +147,14 @@ impl KeygenCommand {
         // 2. Encrypt or Save Plain
         if encrypt {
             let password = rpassword::prompt_password("Enter password to encrypt key: ")
-                .map_err(|e| SolPrivacyError::Io(e))?;
+                .map_err(SolPrivacyError::Io)?;
             
             if password.is_empty() {
                 return Err(SolPrivacyError::Input("Password cannot be empty".to_string()));
             }
 
             let confirm = rpassword::prompt_password("Confirm password: ")
-                .map_err(|e| SolPrivacyError::Io(e))?;
+                .map_err(SolPrivacyError::Io)?;
             
             if password != confirm {
                 return Err(SolPrivacyError::Input("Passwords do not match".to_string()));
@@ -175,7 +173,7 @@ impl KeygenCommand {
             };
             
             let json = serde_json::to_string_pretty(&kp).unwrap();
-            fs::write(output_path, json).map_err(|e| SolPrivacyError::Io(e))?;
+            fs::write(output_path, json).map_err(SolPrivacyError::Io)?;
         }
         
         secret_bytes.zeroize();
@@ -194,7 +192,7 @@ impl KeygenCommand {
 
         println!("{} Recovering keypair from mnemonic...", "→".bright_cyan());
         let mnemonic_str = rpassword::prompt_password("Enter BIP39 Mnemonic: ")
-             .map_err(|e| SolPrivacyError::Io(e))?;
+             .map_err(SolPrivacyError::Io)?;
              
         let mnemonic = Mnemonic::parse(mnemonic_str.trim())
             .map_err(|_| SolPrivacyError::Input("Invalid mnemonic".to_string()))?;
@@ -224,7 +222,7 @@ impl KeygenCommand {
         
         use sha2::{Sha512, Digest};
         let mut hasher = Sha512::new();
-        hasher.update(&seed);
+        hasher.update(seed);
         hasher.update(b"solana-privacy-cli-elgamal");
         hasher.update(index.to_be_bytes());
         let result = hasher.finalize();
@@ -255,7 +253,7 @@ impl KeygenCommand {
                 created_at: chrono::Utc::now().to_rfc3339(),
             };
             fs::write(output_path, serde_json::to_string_pretty(&kp).unwrap())
-                .map_err(|e| SolPrivacyError::Io(e))?;
+                .map_err(SolPrivacyError::Io)?;
         }
         
         final_secret.zeroize();
@@ -298,7 +296,7 @@ impl KeygenCommand {
         let json = serde_json::to_string_pretty(&encrypted_kp)
              .map_err(|e| SolPrivacyError::Crypto(e.to_string()))?;
              
-        fs::write(path, json).map_err(|e| SolPrivacyError::Io(e))?;
+        fs::write(path, json).map_err(SolPrivacyError::Io)?;
         
         Ok(())
     }
