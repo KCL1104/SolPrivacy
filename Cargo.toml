@@ -85,7 +85,7 @@ path = "src/main.rs"
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
-lto = "thin"
+lto = false
 
 # Config for 'dist'
 [workspace.metadata.dist]
