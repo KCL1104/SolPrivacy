@@ -11,7 +11,7 @@ use commands::{
     AccountCommand, ArciumCommand, CompletionsCommand, ComplianceCommand, ConfidentialCommand,
     ConfigCommand, DebugCommand, DevCommand, DocsCommand, DoctorCommand, ExamplesCommand,
     FundCommand, HeliusCommand, InitCommand, KeygenCommand, LightCommand, MintCommand,
-    QuickstartCommand, SetupCommand, TemplateCommand, TransferCommand, WalletCommand,
+    QuickstartCommand, SetupCommand, TemplateCommand, TransferCommand, UtilCommand, WalletCommand,
     WizardCommand, ZkCommand,
 };
 use error::Result;
@@ -102,6 +102,9 @@ enum Commands {
     /// Manage Arcium Confidential Computing nodes and projects
     Arcium(ArciumCommand),
 
+    /// Utility commands (auto-crank, maintenance)
+    Util(UtilCommand),
+
     /// Generate shell completion scripts
     Completions(CompletionsCommand),
 }
@@ -139,6 +142,7 @@ async fn main() -> Result<()> {
         Commands::Quickstart(cmd) => cmd.run().await,
 
         Commands::Wizard(cmd) => cmd.run().await,
+        Commands::Util(cmd) => cmd.run().await,
         Commands::Arcium(cmd) => cmd.run().await,
         Commands::Completions(cmd) => cmd.run(),
     }

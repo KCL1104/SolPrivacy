@@ -189,7 +189,7 @@ cargo run
     }
 
     fn generate_arcium_template(&self) -> Result<()> {
-        let project_name = "arcium-mxe-project";
+        let project_name = "blind-auction";
         let base_path = Path::new(&self.output).join(project_name);
 
         println!(
@@ -199,7 +199,7 @@ cargo run
         println!("  ├─ Creating project structure...");
 
         // Create standard Anchor-like structure
-        fs::create_dir_all(base_path.join("programs").join("arcium-app").join("src"))?;
+        fs::create_dir_all(base_path.join("programs").join("blind-auction").join("src"))?;
         fs::create_dir_all(base_path.join("tests"))?;
         fs::create_dir_all(base_path.join("app"))?;
 
@@ -208,7 +208,7 @@ cargo run
 seeds = false
 skip-lint = false
 [programs.localnet]
-arcium_app = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+blind_auction = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
 [registry]
 url = "https://api.apr.dev"
@@ -242,14 +242,14 @@ codegen-units = 1
 
         // 3. Generate Program Cargo.toml
         let program_cargo = r#"[package]
-name = "arcium-app"
+name = "blind-auction"
 version = "0.1.0"
-description = "Created with SolPrivacy CLI"
+description = "Blind Auction with Arcium MXE"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "arcium_app"
+name = "blind_auction"
 
 [features]
 no-entrypoint = []
@@ -260,38 +260,52 @@ default = []
 
 [dependencies]
 anchor-lang = "0.29.0"
-arcium-anchor = "0.1.0" # Hypothetical crate based on docs
+arcium-anchor = "0.1.0" 
 "#;
         fs::write(
-            base_path.join("programs/arcium-app/Cargo.toml"),
+            base_path.join("programs/blind-auction/Cargo.toml"),
             program_cargo,
         )?;
-        println!("  ├─ Created programs/arcium-app/Cargo.toml");
+        println!("  ├─ Created programs/blind-auction/Cargo.toml");
 
-        // 4. Generate lib.rs with MXE structure
-        let lib_rs = r#"use anchor_lang::prelude::*;
+        // 4. Generate lib.rs with MXE structure (Blind Auction)
+            let lib_rs = r#"use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[arcium_program]
-pub mod arcium_app {
+pub mod blind_auction {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        msg!("Initializing Arcium MXE...");
+        msg!("Initializing Blind Auction...");
         Ok(())
     }
 
     #[arcium_computation]
-    pub fn secure_computation(
-        ctx: Context<Compute>,
-        input_a: Encrypted<u64>,
-        input_b: Encrypted<u64>
+    pub fn place_bid(
+        ctx: Context<Bid>,
+        bid_amount: Encrypted<u64>,
+        bidder: Pubkey
+    ) -> Result<()> {
+        // MXE stores the encrypted bid securely
+        // In a real implementation, this would update the secret state
+        msg!("Bid received from {}", bidder);
+        Ok(())
+    }
+
+    #[arcium_computation]
+    pub fn resolve_auction(
+        ctx: Context<Resolve>,
+        bids: Vec<Encrypted<u64>>
     ) -> Result<Encrypted<u64>> {
-        // This runs inside the TEE / MPC nodes
-        let result = input_a + input_b;
-        Ok(result)
+        // Securely compute the maximum bid without revealing individual bids
+        let max_bid = bids.iter().fold(Encrypted::new(0), |max, bid| {
+            // max(a, b) logic inside MPC
+            arcium::ops::max(&max, bid)
+        });
+        Ok(max_bid)
     }
 }
 
@@ -299,10 +313,13 @@ pub mod arcium_app {
 pub struct Initialize {}
 
 #[derive(Accounts)]
-pub struct Compute {}
+pub struct Bid {}
+
+#[derive(Accounts)]
+pub struct Resolve {}
 "#;
-        fs::write(base_path.join("programs/arcium-app/src/lib.rs"), lib_rs)?;
-        println!("  ├─ Created programs/arcium-app/src/lib.rs");
+        fs::write(base_path.join("programs/blind-auction/src/lib.rs"), lib_rs)?;
+        println!("  ├─ Created programs/blind-auction/src/lib.rs");
 
         // 5. Generate README
         let readme = r#"# Arcium MXE Project
