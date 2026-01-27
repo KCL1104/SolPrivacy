@@ -1,9 +1,9 @@
 use assert_cmd::prelude::*;
 use predicates::str::contains;
+use solana_sdk::signature::{Keypair, Signer};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use solana_sdk::signature::{Keypair, Signer};
 
 fn unique_tmp_dir() -> PathBuf {
     let nanos = std::time::SystemTime::now()
@@ -1035,9 +1035,7 @@ fn quickstart_path_shows_learning_path() {
 fn util_help_shows_subcommands() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("util").arg("--help");
-    cmd.assert()
-        .success()
-        .stdout(contains("crank"));
+    cmd.assert().success().stdout(contains("crank"));
 }
 
 #[test]
@@ -1065,7 +1063,7 @@ fn util_crank_without_account_shows_warning() {
         .arg("crank")
         .arg("--keypair")
         .arg(keypair_path.to_str().unwrap());
-    
+
     // Commands that don't fail but warn likely return success code 0
     cmd.assert()
         .success()
@@ -1095,31 +1093,38 @@ fn template_arcium_generates_blind_auction() {
     fs::create_dir_all(&base).unwrap();
     let output_dir = base.join("test_project");
     fs::create_dir_all(&output_dir).unwrap();
-    
+
     // We point --output to the parent directory where the project folder will be created
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("template")
         .arg("arcium")
         .arg("--output")
         .arg(&output_dir);
-        
-    cmd.assert()
-        .success()
-        .stdout(contains("Arcium MXE"));
+
+    cmd.assert().success().stdout(contains("Arcium MXE"));
 
     // Check directory structure
     let project_path = output_dir.join("blind-auction");
     assert!(project_path.exists(), "Project directory not created");
-    assert!(project_path.join("Anchor.toml").exists(), "Anchor.toml missing");
-    
+    assert!(
+        project_path.join("Anchor.toml").exists(),
+        "Anchor.toml missing"
+    );
+
     // Check for Blind Auction specific files
     let lib_rs = project_path.join("programs/blind-auction/src/lib.rs");
     assert!(lib_rs.exists(), "lib.rs missing");
-    
+
     let content = fs::read_to_string(&lib_rs).unwrap();
-    assert!(content.contains("pub mod blind_auction"), "Wrong module name");
+    assert!(
+        content.contains("pub mod blind_auction"),
+        "Wrong module name"
+    );
     assert!(content.contains("pub fn place_bid"), "place_bid missing");
-    assert!(content.contains("pub fn resolve_auction"), "resolve_auction missing");
+    assert!(
+        content.contains("pub fn resolve_auction"),
+        "resolve_auction missing"
+    );
 
     fs::remove_dir_all(&base).unwrap();
 }
