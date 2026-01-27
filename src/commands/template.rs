@@ -269,7 +269,7 @@ arcium-anchor = "0.1.0"
         println!("  ├─ Created programs/blind-auction/Cargo.toml");
 
         // 4. Generate lib.rs with MXE structure (Blind Auction)
-            let lib_rs = r#"use anchor_lang::prelude::*;
+        let lib_rs = r#"use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");

@@ -11,9 +11,7 @@ use solana_sdk::{
 };
 use spl_token_2022::{
     extension::{
-        confidential_transfer::{
-            instruction::apply_pending_balance, ConfidentialTransferAccount,
-        },
+        confidential_transfer::{instruction::apply_pending_balance, ConfidentialTransferAccount},
         BaseStateWithExtensions, StateWithExtensions,
     },
     state::Account as TokenAccount,
@@ -110,10 +108,7 @@ impl UtilCommand {
         println!();
 
         if account_pubkeys.is_empty() {
-            println!(
-                "{} No accounts specified to monitor.",
-                "⚠".bright_yellow()
-            );
+            println!("{} No accounts specified to monitor.", "⚠".bright_yellow());
             return Ok(());
         }
 
@@ -130,12 +125,7 @@ impl UtilCommand {
                         }
                     }
                     Err(e) => {
-                        println!(
-                            "{} Error checking {}: {}",
-                            "✗".bright_red(),
-                            pubkey,
-                            e
-                        );
+                        println!("{} Error checking {}: {}", "✗".bright_red(), pubkey, e);
                     }
                 }
             }
@@ -161,55 +151,60 @@ impl UtilCommand {
             .map_err(|e| SolPrivacyError::Rpc(format!("Failed to fetch account: {}", e)))?;
 
         // Parse Token-2022 state
-        let state = StateWithExtensions::<TokenAccount>::unpack(&account.data)
-            .map_err(|e| SolPrivacyError::Other(format!("Failed to unpack token account: {}", e)))?;
+        let state = StateWithExtensions::<TokenAccount>::unpack(&account.data).map_err(|e| {
+            SolPrivacyError::Other(format!("Failed to unpack token account: {}", e))
+        })?;
 
         // Check for ConfidentialTransfer extension
         if let Ok(ct_extension) = state.get_extension::<ConfidentialTransferAccount>() {
             // Check if there is effectively any pending balance?
             // We can't check value (encrypted), but we must pass the current ciphertext to the instruction
             // as 'expected_pending_balance_credit'.
-            
+
             // Note: In a real crank, we might want to check if the ciphertext is "zero" (all empty)?
             // But encrypted zero is not all bytes zero.
             // However, the instruction validates the passed ciphertext matches the account state.
             // If we just apply whatever is there, it should check out.
-            
+
             let expected_pending_balance = &ct_extension.decryptable_available_balance;
 
             // Build instruction
-             let apply_ix = apply_pending_balance(
+            let apply_ix = apply_pending_balance(
                 &spl_token_2022::id(),
                 account_pubkey,
                 1, // We assume 1 signatures (the payer/owner)
                 expected_pending_balance,
                 &payer.pubkey(), // Payer is authority?
                 &[],
-            ).map_err(|e| SolPrivacyError::Other(format!("Failed to create instruction: {}", e)))?;
+            )
+            .map_err(|e| SolPrivacyError::Other(format!("Failed to create instruction: {}", e)))?;
 
-            let blockhash = client.get_latest_blockhash()
+            let blockhash = client
+                .get_latest_blockhash()
                 .map_err(|e| SolPrivacyError::Rpc(format!("Failed to get blockhash: {}", e)))?;
 
             let tx = Transaction::new_signed_with_payer(
                 &[apply_ix],
                 Some(&payer.pubkey()),
                 &[payer],
-                blockhash
+                blockhash,
             );
 
             match client.send_and_confirm_transaction(&tx) {
-                Ok(_) => return Ok(true),
+                Ok(_) => Ok(true),
                 Err(_e) => {
-                     // Check if error is "no pending balance" or similar harmless error?
-                     // For now, treat error as false (no apply occurred or failed)
-                     // But don't crash loop.
-                     // println!("Debug: {}", e);
-                     return Ok(false);
+                    // Check if error is "no pending balance" or similar harmless error?
+                    // For now, treat error as false (no apply occurred or failed)
+                    // But don't crash loop.
+                    // println!("Debug: {}", e);
+                    Ok(false)
                 }
             }
         } else {
             // Not a confidential account
-            return Err(SolPrivacyError::Other("Account does not have ConfidentialTransfer extension".to_string()));
+            Err(SolPrivacyError::Other(
+                "Account does not have ConfidentialTransfer extension".to_string(),
+            ))
         }
     }
 }

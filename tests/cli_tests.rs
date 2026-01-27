@@ -3,6 +3,7 @@ use predicates::str::contains;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use solana_sdk::signature::{Keypair, Signer};
 
 fn unique_tmp_dir() -> PathBuf {
     let nanos = std::time::SystemTime::now()
@@ -798,10 +799,7 @@ fn helius_help_shows_subcommands() {
 fn helius_info_shows_api_info() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
     cmd.arg("helius").arg("info");
-    cmd.assert()
-        .success()
-        .stdout(contains("Helius"))
-        .stdout(contains("API"));
+    cmd.assert().success().stdout(contains("Helius API"));
 }
 
 #[test]
@@ -1027,4 +1025,101 @@ fn quickstart_path_shows_learning_path() {
         .success()
         .stdout(contains("Learning Path"))
         .stdout(contains("essential"));
+}
+
+// ============================================================================
+// Util Command Tests
+// ============================================================================
+
+#[test]
+fn util_help_shows_subcommands() {
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
+    cmd.arg("util").arg("--help");
+    cmd.assert()
+        .success()
+        .stdout(contains("crank"));
+}
+
+#[test]
+fn util_crank_help_shows_options() {
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
+    cmd.arg("util").arg("crank").arg("--help");
+    cmd.assert()
+        .success()
+        .stdout(contains("account"))
+        .stdout(contains("interval"))
+        .stdout(contains("loop-mode"));
+}
+
+#[test]
+fn util_crank_without_account_shows_warning() {
+    let base = unique_tmp_dir();
+    fs::create_dir_all(&base).unwrap();
+    let keypair_path = base.join("test_id.json");
+    let keypair = Keypair::new();
+    fs::write(&keypair_path, format!("{:?}", keypair.to_bytes())).unwrap();
+
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
+    // No accounts specified, should exit early with warning
+    cmd.arg("util")
+        .arg("crank")
+        .arg("--keypair")
+        .arg(keypair_path.to_str().unwrap());
+    
+    // Commands that don't fail but warn likely return success code 0
+    cmd.assert()
+        .success()
+        .stdout(contains("No accounts specified"));
+
+    fs::remove_dir_all(&base).unwrap();
+}
+
+// ============================================================================
+// Template Command Tests
+// ============================================================================
+
+#[test]
+fn template_help_shows_subcommands() {
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
+    cmd.arg("template").arg("--help");
+    cmd.assert()
+        .success()
+        .stdout(contains("token2022"))
+        .stdout(contains("arcium"))
+        .stdout(contains("light"));
+}
+
+#[test]
+fn template_arcium_generates_blind_auction() {
+    let base = unique_tmp_dir();
+    fs::create_dir_all(&base).unwrap();
+    let output_dir = base.join("test_project");
+    fs::create_dir_all(&output_dir).unwrap();
+    
+    // We point --output to the parent directory where the project folder will be created
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("solprivacy"));
+    cmd.arg("template")
+        .arg("arcium")
+        .arg("--output")
+        .arg(&output_dir);
+        
+    cmd.assert()
+        .success()
+        .stdout(contains("Arcium MXE"));
+
+    // Check directory structure
+    let project_path = output_dir.join("blind-auction");
+    assert!(project_path.exists(), "Project directory not created");
+    assert!(project_path.join("Anchor.toml").exists(), "Anchor.toml missing");
+    
+    // Check for Blind Auction specific files
+    let lib_rs = project_path.join("programs/blind-auction/src/lib.rs");
+    assert!(lib_rs.exists(), "lib.rs missing");
+    
+    let content = fs::read_to_string(&lib_rs).unwrap();
+    assert!(content.contains("pub mod blind_auction"), "Wrong module name");
+    assert!(content.contains("pub fn place_bid"), "place_bid missing");
+    assert!(content.contains("pub fn resolve_auction"), "resolve_auction missing");
+
+    fs::remove_dir_all(&base).unwrap();
 }
